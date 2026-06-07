@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000/api",
   },
   async rewrites() {
-    const rawBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000/api";
+    const rawBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "/api";
     const backendUrl = rawBackendUrl.replace(/\/+$/, "");
     const normalized = backendUrl.match(/\/api$/i)
       ? backendUrl
