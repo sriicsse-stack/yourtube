@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "scripts": {
+    "dev": "cd yourtube && npm run dev",
+    "build": "cd yourtube && npm run build",
+    "start": "cd yourtube && npm run start"
+  },
+  "engines": {
+    "node": "20.x"
+  }
+}
