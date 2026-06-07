@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
     BACKEND_URL: process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000/api",
     NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000/api",
   },
+  // Ensure Turbopack uses this folder as the workspace root (avoids root inference warning)
+  turbopack: {
+    root: __dirname,
+  },
 };
 
 export default nextConfig;
