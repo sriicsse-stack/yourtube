@@ -26,6 +26,20 @@ const nextConfig: NextConfig = {
     BACKEND_URL: process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000/api",
     NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000/api",
   },
+  async rewrites() {
+    const rawBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000/api";
+    const backendUrl = rawBackendUrl.replace(/\/+$/, "");
+    const normalized = backendUrl.match(/\/api$/i)
+      ? backendUrl
+      : `${backendUrl}/api`;
+
+    return [
+      {
+        source: "/api/:path*",
+        destination: `${normalized}/:path*`,
+      },
+    ];
+  },
   // Ensure Turbopack uses this folder as the workspace root (avoids root inference warning)
   turbopack: {
     root: __dirname,
