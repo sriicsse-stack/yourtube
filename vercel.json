@@ -1,0 +1,6 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "yourtube/package.json", "use": "@vercel/next" }
+  ]
+}
