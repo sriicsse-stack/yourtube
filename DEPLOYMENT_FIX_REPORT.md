@@ -7,6 +7,7 @@ Files modified:
 - `yourtube/next.config.ts` — removed hardcoded localhost remotePatterns and used `BACKEND_URL`/`NEXT_PUBLIC_BACKEND_URL` at build time to avoid hardcoded localhost in production.
 - `.gitignore` — (already updated earlier) ensures `.env` files and build outputs are ignored.
 - `vercel.json` — added at repo root to point Vercel to the frontend package.json.
+- `yourtube/vercel.json` — added so Vercel recognizes the frontend config when the project root is set to `yourtube`.
 
 Required Environment Variables (frontend project on Vercel):
 - `BACKEND_URL` (e.g. https://api.yourtube.com/api) — must include `/api` suffix
