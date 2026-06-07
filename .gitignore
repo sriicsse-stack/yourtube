@@ -9,7 +9,7 @@
 yourtube/node_modules
 
 # Generated output
-/snapshots/
+/.snapshots/
 /yourtube/.next/
 /yourtube/out/
 /yourtube/build
