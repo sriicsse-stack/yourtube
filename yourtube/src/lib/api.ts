@@ -5,7 +5,11 @@ export function getBackendUrl(): string {
     process.env.NEXT_PUBLIC_API_URL ||
     process.env.NEXT_PUBLIC_BACKEND_URL ||
     process.env.BACKEND_URL ||
-    "http://localhost:5000/api";
+    (process.env.NODE_ENV === "development" ? "http://localhost:5000/api" : "/api");
+
+  if (!raw) {
+    return "";
+  }
 
   const normalized = raw.replace(/\/+$/, "");
   if (/\/api($|\/)/i.test(normalized)) {

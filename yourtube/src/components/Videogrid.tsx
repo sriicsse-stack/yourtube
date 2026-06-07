@@ -45,7 +45,7 @@ const Videogrid = () => {
         <p className="text-red-600 mb-2">Could not load videos</p>
         <p className="text-sm text-gray-500">{error}</p>
         <p className="text-sm text-gray-500 mt-2">
-          Make sure the backend is running on port 5000
+          Make sure the backend API is deployed and `NEXT_PUBLIC_BACKEND_URL` is set in Vercel.
         </p>
       </div>
     );
