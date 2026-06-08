@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { getPreviewUrl, formatVideoDate } from "@/lib/api";
-import Image from "next/image";
 
 export default function VideoCard({ video }: any) {
   if (!video?._id) return null;
@@ -19,11 +18,11 @@ export default function VideoCard({ video }: any) {
       <div className="space-y-3">
         <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100">
           {previewUrl ? (
-            <Image
+            <img
               src={previewUrl}
               alt={video.videotitle}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-200"
+              loading="lazy"
+              className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-200"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">

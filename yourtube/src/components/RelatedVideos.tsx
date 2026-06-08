@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { formatDistanceToNow } from "date-fns";
 import { getPreviewUrl } from "@/lib/api";
 
@@ -46,11 +45,11 @@ export default function RelatedVideos({
             className="flex gap-2 group"
           >
             <div className="relative w-40 aspect-video bg-gray-100 rounded overflow-hidden flex-shrink-0">
-              <Image
+              <img
                 src={previewUrl}
                 alt={video.videotitle}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform duration-200"
+                loading="lazy"
+                className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-200"
               />
             </div>
             <div className="flex-1 min-w-0">

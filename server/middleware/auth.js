@@ -1,6 +1,19 @@
 import jwt from "jsonwebtoken";
 import users from "../Modals/Auth.js";
 
+// Get JWT secret with validation
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("JWT_SECRET environment variable is required in production");
+    }
+    console.warn("⚠️  JWT_SECRET not set, using development default (INSECURE)");
+    return "yourtube_secret_dev_only";
+  }
+  return secret;
+}
+
 export async function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
@@ -13,7 +26,7 @@ export async function authenticate(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "yourtube_secret");
+    const decoded = jwt.verify(token, getJwtSecret());
     req.userId = decoded.id;
     const user = await users.findById(req.userId);
     if (!user) {

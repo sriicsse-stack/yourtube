@@ -1,7 +1,6 @@
 {
-  "version": 3,
-  "rootDirectory": "yourtube",
+  "version": 2,
   "builds": [
-    { "src": "package.json", "use": "@vercel/next" }
+    { "src": "yourtube/package.json", "use": "@vercel/next" }
   ]
 }

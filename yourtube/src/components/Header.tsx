@@ -15,6 +15,7 @@ import Channeldialogue from "./channeldialogue";
 import { useRouter } from "next/router";
 import { useUser } from "@/lib/AuthContext";
 import { useLanguage } from "@/lib/LanguageContext";
+import { getBackendUrl } from "@/lib/api";
 
 const Header = () => {
   const { user, logout, handlegooglesignin, authError, googleSigningIn } = useUser();
@@ -41,9 +42,14 @@ const Header = () => {
 
     const loadCount = async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "/api"}/notifications/count`, {
+        const backendUrl = getBackendUrl() || process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "/api";
+        const response = await fetch(`${backendUrl.replace(/\/+$/, "")}/notifications/count`, {
           headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
         });
+        if (!response.ok) {
+          console.error("Unread count request failed:", response.status, response.statusText);
+          return;
+        }
         const data = await response.json();
         setUnreadCount(data?.count || 0);
       } catch (error) {
