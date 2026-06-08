@@ -35,16 +35,31 @@ export default function VideoCard({ video }: any) {
               className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-200"
             />
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-slate-100 px-4 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-200 text-2xl font-semibold text-slate-600">
-                {video?.videotitle?.[0]?.toUpperCase() || "V"}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-800 line-clamp-2">
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-sky-700 px-4 text-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-8 w-8 text-white"
+                  >
+                    <path
+                      d="M10 8.5L16.5 12L10 15.5V8.5Z"
+                      fill="currentColor"
+                    />
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeOpacity="0.2"
+                      strokeWidth="2"
+                    />
+                  </svg>
+                </div>
+                <p className="max-w-[80%] text-sm font-semibold text-white line-clamp-2">
                   {video?.videotitle || "Untitled video"}
-                </p>
-                <p className="text-xs text-slate-500">
-                  Thumbnail unavailable
                 </p>
               </div>
             </div>
