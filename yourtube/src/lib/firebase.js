@@ -4,7 +4,7 @@ import { getAuth, GoogleAuthProvider } from "firebase/auth";
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyCyxbdclt2ocA5zgE-MDy1ndYIFqVMAr30",
   authDomain:
-    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "yourtube-yglv.vercel.app",
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "clone-2112f.firebaseapp.com",
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "yourtube-8cda9",
   storageBucket:
     process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "yourtube-8cda9.firebasestorage.app",

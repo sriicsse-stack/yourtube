@@ -23,9 +23,13 @@ export function getVideoUrl(filepath?: string): string {
   const normalized = filepath.replace(/\\/g, "/");
   // video files are served from the backend root (without /api)
   const apiBase = getBackendUrl().replace(/\/$/, "");
-  const base = apiBase.replace(/\/api$/i, "") || apiBase.replace(/\/$/, "");
+  const backendRoot = apiBase.replace(/\/api$/i, "");
+  const root =
+    backendRoot ||
+    (typeof window !== "undefined" ? window.location.origin : "") ||
+    apiBase.replace(/\/$/, "");
   const path = normalized.startsWith("/") ? normalized.slice(1) : normalized;
-  return `${base}/${path}`;
+  return `${root}/${path}`;
 }
 
 export function getPreviewUrl(
