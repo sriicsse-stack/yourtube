@@ -1,9 +1,12 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { getPreviewUrl, formatVideoDate } from "@/lib/api";
 
 export default function VideoCard({ video }: any) {
+  const [thumbnailError, setThumbnailError] = useState(false);
+
   if (!video?._id) return null;
 
   const previewUrl = getPreviewUrl(
@@ -13,20 +16,37 @@ export default function VideoCard({ video }: any) {
     video.filepath
   );
 
+  const showPreviewImage = Boolean(
+    previewUrl &&
+      !thumbnailError &&
+      previewUrl !== "/default-thumbnail.svg"
+  );
+
   return (
     <Link href={`/watch/${video._id}`} className="group block">
       <div className="space-y-3">
         <div className="relative aspect-video rounded-lg overflow-hidden bg-gray-100">
-          {previewUrl ? (
+          {showPreviewImage ? (
             <img
               src={previewUrl}
-              alt={video.videotitle}
+              alt={video.videotitle || "Video thumbnail"}
               loading="lazy"
+              onError={() => setThumbnailError(true)}
               className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-200"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
-              No preview
+            <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-slate-100 px-4 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-200 text-2xl font-semibold text-slate-600">
+                {video?.videotitle?.[0]?.toUpperCase() || "V"}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800 line-clamp-2">
+                  {video?.videotitle || "Untitled video"}
+                </p>
+                <p className="text-xs text-slate-500">
+                  Thumbnail unavailable
+                </p>
+              </div>
             </div>
           )}
         </div>
@@ -40,8 +60,7 @@ export default function VideoCard({ video }: any) {
             </h3>
             <p className="text-sm text-gray-600 mt-1">{video?.videochanel}</p>
             <p className="text-sm text-gray-600">
-              {(video?.views || 0).toLocaleString()} views •{" "}
-              {formatVideoDate(video?.createdAt)}
+              {(video?.views || 0).toLocaleString()} views • {formatVideoDate(video?.createdAt)}
             </p>
           </div>
         </div>
