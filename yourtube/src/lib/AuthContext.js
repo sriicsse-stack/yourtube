@@ -96,26 +96,42 @@ export const UserProvider = ({ children }) => {
     } catch (error) {
       const code = error?.code || "";
 
+      // Map known Firebase auth errors to friendlier messages
+      const getFriendlyAuthError = (err) => {
+        if (!err) return "Sign in failed";
+        const c = err.code || "";
+        const msg = err.message || "";
+        if (c === "auth/unauthorized-domain" || msg.includes("unauthorized-domain")) {
+          return "Authentication blocked: add yourtube-yglv.vercel.app to Firebase Authorized Domains";
+        }
+        if (c === "auth/network-request-failed") {
+          return "Network error during sign in. Check your connection and try again.";
+        }
+        if (c === "auth/cancelled-popup-request") return "Previous sign-in was cancelled. Please try again.";
+        if (c === "auth/popup-closed-by-user") return "Sign in was cancelled. Please try again.";
+        return msg || "Sign in failed";
+      };
+
       // Common user-facing messages
       if (code === "auth/cancelled-popup-request") {
         // This occurs when multiple popups are triggered; inform user to retry
         console.warn("Cancelled popup request - likely another popup was open.");
-        setAuthError("Previous sign-in was cancelled. Please try again.");
+        setAuthError(getFriendlyAuthError(error));
       } else if (code === "auth/popup-closed-by-user") {
-        setAuthError("Sign in was cancelled. Please try again.");
+        setAuthError(getFriendlyAuthError(error));
       } else if (code === "auth/popup-blocked" || code === "auth/web-storage-unsupported") {
         // Try redirect fallback
         try {
           await signInWithRedirect(auth, provider);
         } catch (redirectErr) {
           console.error("Redirect sign-in failed:", redirectErr);
-          setAuthError(redirectErr?.message || "Sign in failed");
+          setAuthError(getFriendlyAuthError(redirectErr));
         }
       } else if (code === "auth/network-request-failed") {
-        setAuthError("Network error during sign in. Check your connection and try again.");
+        setAuthError(getFriendlyAuthError(error));
       } else {
         console.error("Google sign-in error:", error);
-        setAuthError(error?.message || "Sign in failed");
+        setAuthError(getFriendlyAuthError(error));
       }
     } finally {
       setGoogleSigningIn(false);
@@ -136,13 +152,17 @@ export const UserProvider = ({ children }) => {
             await syncWithBackend(firebaseUser);
           } catch (err) {
             console.error("Backend sync failed after redirect sign-in:", err);
-            setAuthError("Could not sync account with server. Please try again.");
+              setAuthError("Could not sync account with server. Please try again.");
           }
         }
       } catch (err) {
         // ignore no-redirect-result errors
         if (err?.code && err.code !== "auth/no-auth-event") {
           console.error("Error processing redirect result:", err);
+          // If redirect processing failed due to unauthorized domain, show friendly message
+          if (err.code === "auth/unauthorized-domain" || (err.message || "").includes("unauthorized-domain")) {
+            setAuthError("Authentication blocked: add yourtube-yglv.vercel.app to Firebase Authorized Domains");
+          }
         }
       }
     }

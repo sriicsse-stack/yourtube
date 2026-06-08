@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import Videocard from "./videocard";
 
 const Videogrid = () => {
-  const [videos, setvideo] = useState<any>(null);
+  const [videos, setvideo] = useState<any[]>([]);
   const [loading, setloading] = useState(true);
   const [error, seterror] = useState<string | null>(null);
 
@@ -12,7 +12,7 @@ const Videogrid = () => {
         const res = await fetch("/api/videos");
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
-        setvideo(data);
+        setvideo(Array.isArray(data) ? data : []);
       } catch (error) {
         seterror("Could not load videos");
         console.log(error);
@@ -30,8 +30,10 @@ const Videogrid = () => {
         <>Loading...</>
       ) : error ? (
         <p className="text-red-500">{error}</p>
+      ) : videos.length === 0 ? (
+        <p className="text-gray-500">No videos available yet.</p>
       ) : (
-        videos?.map((video: any) => (
+        videos.map((video: any) => (
           <Videocard key={video._id} video={video} />
         ))
       )}
