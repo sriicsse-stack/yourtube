@@ -1,6 +1,101 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import path from "path";
+import mongoose from "mongoose";
+import bodyParser from "body-parser";
+import userroutes from "../routes/auth.js";
+import videoroutes from "../routes/video.js";
+import likeroutes from "../routes/like.js";
+import watchlaterroutes from "../routes/watchlater.js";
+import historyrroutes from "../routes/history.js";
+import commentroutes from "../routes/comment.js";
+import downloadroutes from "../routes/download.js";
+import paymentroutes from "../routes/payment.js";
+import moderationroutes from "../routes/moderation.js";
+import subscriptionroutes from "../routes/subscriptions.js";
+import notificationroutes from "../routes/notifications.js";
+import { connectDatabase, setupDatabaseEventHandlers } from "../config/database.js";
+
+dotenv.config();
+
+const app = express();
+
+const allowedOrigins = (
+  process.env.CORS_ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:3001"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+      return callback(new Error("Not allowed by CORS"));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    credentials: true,
+  })
+);
+app.use(express.json({ limit: "30mb", extended: true }));
+app.use(express.urlencoded({ limit: "30mb", extended: true }));
+app.use(bodyParser.json());
+app.use("/uploads", express.static(path.join("uploads")));
+
+// basic root
+app.get("/", (req, res) => {
+  res.send("You tube backend (serverless) is working");
+});
+
+// health
+app.get("/api/health", (req, res) => {
+  const dbState = ["disconnected", "connected", "connecting", "disconnecting"];
+  res.json({
+    status: "ok",
+    mongodb: dbState[mongoose.connection.readyState] || "unknown",
+  });
+});
+
+// mount routes
+app.use("/api/user", userroutes);
+app.use("/api/auth", userroutes);
+app.use("/api/users", userroutes);
+app.use("/api/videos", videoroutes);
+app.use("/api/like", likeroutes);
+app.use("/api/watch", watchlaterroutes);
+app.use("/api/history", historyrroutes);
+app.use("/api/comment", commentroutes);
+app.use("/api/download", downloadroutes);
+app.use("/api/payment", paymentroutes);
+app.use("/api/moderation", moderationroutes);
+app.use("/api/subscriptions", subscriptionroutes);
+app.use("/api/notifications", notificationroutes);
+
+let dbConnecting = false;
+async function ensureDbConnected() {
+  if (mongoose.connection.readyState === 1) return;
+  if (dbConnecting) return;
+  dbConnecting = true;
+  setupDatabaseEventHandlers();
+  await connectDatabase();
+  dbConnecting = false;
+}
+
+export default async function handler(req, res) {
+  try {
+    await ensureDbConnected();
+    // delegate to express
+    return app(req, res);
+  } catch (err) {
+    console.error("Serverless handler error:", err.message || err);
+    res.status(500).json({ message: "Server error" });
+  }
+}
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
 import bodyParser from "body-parser";
 import path from "path";
 import mongoose from "mongoose";

@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 
+// Validate environment variables at build time
+if (!process.env.NEXT_PUBLIC_BACKEND_URL && process.env.NODE_ENV === "production") {
+  console.warn("WARNING: NEXT_PUBLIC_BACKEND_URL is not set in production. API calls may fail.");
+}
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   images: {
