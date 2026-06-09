@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
+import { fileURLToPath } from "url";
 import mongoose from "mongoose";
 import userroutes from "./routes/auth.js";
 import videoroutes from "./routes/video.js";
@@ -17,6 +18,11 @@ import notificationroutes from "./routes/notifications.js";
 import { connectDatabase, setupDatabaseEventHandlers } from "./config/database.js";
 
 dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { uploadsDir as helperUploadsDir, isServerless as helperIsServerless } from "./filehelper/filehelper.js";
+const uploadsDir = path.resolve(process.env.UPLOADS_DIR || helperUploadsDir || path.join(__dirname, "uploads"));
+const isServerless = !!helperIsServerless;
 
 const app = express();
 
@@ -45,8 +51,24 @@ app.use(
 
 app.use(express.json({ limit: "30mb" }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
-const uploadsDir = path.resolve("uploads");
-app.use("/uploads", express.static(uploadsDir));
+// Only serve `/uploads` if the directory exists and is readable. In serverless
+// environments serving project files is unsafe; uploads should be served from
+// an external storage or from /tmp for ephemeral files.
+try {
+  if (!isServerless) {
+    app.use("/uploads", express.static(uploadsDir));
+  } else {
+    // In serverless, do not expose project uploads directory. If UPLOADS_DIR
+    // points to an external mount, and exists, attempt to serve it.
+    const fs = await import("fs/promises");
+    const stat = await fs.stat(uploadsDir).catch(() => null);
+    if (stat && stat.isDirectory()) {
+      app.use("/uploads", express.static(uploadsDir));
+    }
+  }
+} catch (e) {
+  // ignore - do not crash startup due to missing uploads dir
+}
 
 app.get("/", (req, res) => {
   res.send("You tube backend (serverless) is working");
@@ -80,8 +102,11 @@ export async function ensureDbConnected() {
   if (dbConnecting) return;
   dbConnecting = true;
   setupDatabaseEventHandlers();
-  await connectDatabase();
-  dbConnecting = false;
+  try {
+    await connectDatabase();
+  } finally {
+    dbConnecting = false;
+  }
 }
 
 export { app };

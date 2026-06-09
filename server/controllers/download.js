@@ -3,6 +3,8 @@ import video from "../Modals/video.js";
 import users from "../Modals/Auth.js";
 import path from "path";
 import fs from "fs";
+import os from "os";
+import { uploadsDir as helperUploadsDir, isServerless as helperIsServerless } from "../filehelper/filehelper.js";
 import { normalizeFilePath } from "../utils/normalize.js";
 
 const PREMIUM_PLANS = ["BRONZE", "SILVER", "GOLD"];
@@ -43,7 +45,14 @@ export const downloadVideo = async (req, res) => {
       videoTitle: vid.videotitle,
     });
 
-    const filePath = path.resolve(normalizeFilePath(vid.filepath));
+    // In serverless, files may not be present on disk. Prefer external storage.
+    const defaultUploads = helperUploadsDir || path.join(process.cwd(), "uploads");
+    let filePath = path.resolve(normalizeFilePath(vid.filepath || ""));
+    if (helperIsServerless && !filePath.startsWith(defaultUploads)) {
+      // If the filepath is not within the configured uploads dir, we cannot access it in serverless.
+      return res.status(503).json({ message: "Video downloads are not available in serverless deployment. Please use external storage." });
+    }
+
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ message: "Video file not found on server" });
     }
