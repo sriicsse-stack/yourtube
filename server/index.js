@@ -1,84 +1,15 @@
-import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
-import bodyParser from "body-parser";
-import path from "path";
 import http from "http";
 import net from "net";
-import mongoose from "mongoose";
-import userroutes from "./routes/auth.js";
-import videoroutes from "./routes/video.js";
-import likeroutes from "./routes/like.js";
-import watchlaterroutes from "./routes/watchlater.js";
-import historyrroutes from "./routes/history.js";
-import commentroutes from "./routes/comment.js";
-import downloadroutes from "./routes/download.js";
-import paymentroutes from "./routes/payment.js";
-import moderationroutes from "./routes/moderation.js";
-import subscriptionroutes from "./routes/subscriptions.js";
-import notificationroutes from "./routes/notifications.js";
+import { app } from "./app.js";
 import { connectDatabase, setupDatabaseEventHandlers } from "./config/database.js";
 import { initSocket } from "./socket/index.js";
 import { migrateLegacyThumbnails, generateMissingThumbnails } from "./controllers/video.js";
 
 dotenv.config();
 
-const app = express();
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 5000;
-
-const allowedOrigins = (
-  process.env.CORS_ALLOWED_ORIGINS || "http://localhost:3000,http://localhost:3001"
-)
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // allow requests with no origin like mobile apps or curl
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
-      return callback(new Error("Not allowed by CORS"));
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    credentials: true,
-  })
-);
-app.use(express.json({ limit: "30mb", extended: true }));
-app.use(express.urlencoded({ limit: "30mb", extended: true }));
-app.use("/uploads", express.static(path.join("uploads")));
-app.use(bodyParser.json());
-
-app.get("/", (req, res) => {
-  res.send("You tube backend is working");
-});
-
-// Health endpoint under /api/health as required
-app.get("/api/health", (req, res) => {
-  const dbState = ["disconnected", "connected", "connecting", "disconnecting"];
-  res.json({
-    status: "ok",
-    mongodb: dbState[mongoose.connection.readyState] || "unknown",
-  });
-});
-
-// Mount APIs under /api/*
-app.use("/api/user", userroutes);
-// also expose common auth/user paths for compatibility
-app.use("/api/auth", userroutes);
-app.use("/api/users", userroutes);
-app.use("/api/videos", videoroutes);
-app.use("/api/like", likeroutes);
-app.use("/api/watch", watchlaterroutes);
-app.use("/api/history", historyrroutes);
-app.use("/api/comment", commentroutes);
-app.use("/api/download", downloadroutes);
-app.use("/api/payment", paymentroutes);
-app.use("/api/moderation", moderationroutes);
-app.use("/api/subscriptions", subscriptionroutes);
-app.use("/api/notifications", notificationroutes);
 
 async function tryListen(server, port) {
   return new Promise((resolve, reject) => {
