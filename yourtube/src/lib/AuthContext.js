@@ -5,10 +5,8 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signOut,
-  setPersistence,
-  browserLocalPersistence,
 } from "firebase/auth";
-import { auth, provider, FIREBASE_AUTH_DOMAIN } from "./firebase";
+import { auth, provider } from "./firebase";
 import axiosInstance from "./axiosinstance";
 
 const defaultContext = {
@@ -86,7 +84,6 @@ export const UserProvider = ({ children }) => {
     setGoogleSigningIn(true);
 
     try {
-      await setPersistence(auth, browserLocalPersistence);
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result?.user || auth.currentUser;
       if (firebaseUser) {
@@ -106,7 +103,7 @@ export const UserProvider = ({ children }) => {
         const c = err.code || "";
         const msg = err.message || "";
         if (c === "auth/unauthorized-domain" || msg.includes("unauthorized-domain")) {
-          return `Google sign-in is blocked from this domain. Verify ${FIREBASE_AUTH_DOMAIN} and the current site in Firebase Authorized Domains.`;
+          return "Authentication blocked: add yourtube-yglv.vercel.app to Firebase Authorized Domains";
         }
         if (c === "auth/network-request-failed") {
           return "Network error during sign in. Check your connection and try again.";
@@ -124,11 +121,6 @@ export const UserProvider = ({ children }) => {
       } else if (code === "auth/popup-closed-by-user") {
         setAuthError(getFriendlyAuthError(error));
       } else if (code === "auth/popup-blocked" || code === "auth/web-storage-unsupported") {
-        try {
-          await setPersistence(auth, browserLocalPersistence);
-        } catch (persistErr) {
-          console.warn("Could not set auth persistence before redirect:", persistErr);
-        }
         // Try redirect fallback
         try {
           await signInWithRedirect(auth, provider);
@@ -169,9 +161,7 @@ export const UserProvider = ({ children }) => {
         if (err?.code && err.code !== "auth/no-auth-event") {
           console.error("Error processing redirect result:", err);
           if (err.code === "auth/unauthorized-domain" || (err.message || "").includes("unauthorized-domain")) {
-            setAuthError(
-              `Google sign-in is blocked from this domain. Verify ${FIREBASE_AUTH_DOMAIN} and the current site in Firebase Authorized Domains.`
-            );
+            setAuthError("Authentication blocked: add yourtube-yglv.vercel.app to Firebase Authorized Domains");
           }
         }
       }
