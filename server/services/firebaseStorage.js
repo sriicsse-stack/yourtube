@@ -1,36 +1,53 @@
 import path from "path";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
 
 let admin = null;
 let bucket = null;
 let firebaseError = null;
+let firebaseInitPromise = null;
 
 /**
  * Lazy initialize Firebase Admin SDK on first use
  * If Firebase is unavailable, backend continues to run
  */
-function initializeFirebase() {
-  if (bucket) return; // Already initialized
-  if (firebaseError) throw firebaseError; // Previously failed
-
-  try {
-    // Dynamically import firebase-admin to prevent top-level import errors
-    admin = require("firebase-admin");
-
-    if (!admin.apps || !admin.apps.length) {
-      admin.initializeApp({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-      });
-    }
-
-    bucket = admin.storage().bucket();
-    console.log("✓ Firebase Admin SDK initialized successfully");
-  } catch (error) {
-    firebaseError = error;
-    console.error("✗ Firebase Admin SDK initialization failed:", error.message);
-    console.error("  Backend will continue without Firebase Storage support");
-    throw error;
+async function initializeFirebase() {
+  // If already initialized successfully, return
+  if (bucket) return;
+  
+  // If already failed, throw the error again
+  if (firebaseError) throw firebaseError;
+  
+  // If initialization is in progress, wait for it
+  if (firebaseInitPromise) {
+    return firebaseInitPromise;
   }
+
+  // Start initialization
+  firebaseInitPromise = (async () => {
+    try {
+      // Load firebase-admin using require (it's a CommonJS module)
+      admin = require("firebase-admin");
+
+      if (!admin.apps || !admin.apps.length) {
+        admin.initializeApp({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+        });
+      }
+
+      bucket = admin.storage().bucket();
+      console.log("✓ Firebase Admin SDK initialized successfully");
+    } catch (error) {
+      firebaseError = error;
+      console.error("✗ Firebase Admin SDK initialization failed:", error.message);
+      console.error("  Backend will continue without Firebase Storage support");
+      throw error;
+    }
+  })();
+
+  return firebaseInitPromise;
 }
 
 /**
@@ -44,7 +61,7 @@ function initializeFirebase() {
 export async function uploadToFirebase(fileBuffer, fileName, folder, mimeType) {
   try {
     // Ensure Firebase is initialized before upload
-    initializeFirebase();
+    await initializeFirebase();
 
     // Generate unique filename to prevent collisions
     const timestamp = Date.now();
@@ -95,7 +112,7 @@ export async function deleteFromFirebase(storagePath) {
     if (!storagePath) return;
     
     // Ensure Firebase is initialized before delete
-    initializeFirebase();
+    await initializeFirebase();
     
     const file = bucket.file(storagePath);
     await file.delete();
