@@ -1,17 +1,15 @@
-import { v2 as v2cloud } from 'cloudinary';
-
-const v2 = v2cloud;
+import { v2 as cloudinary } from 'cloudinary';
 
 // Lazily configure Cloudinary when needed to ensure dotenv has run
 function ensureCloudinaryConfigured() {
   try {
-    v2.config({
+    cloudinary.config({
       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
       api_key: process.env.CLOUDINARY_API_KEY,
       api_secret: process.env.CLOUDINARY_API_SECRET,
     });
 
-    const cfg = v2.config();
+    const cfg = cloudinary.config();
     console.log("Cloudinary runtime config:", {
       cloud_name: cfg.cloud_name || process.env.CLOUDINARY_CLOUD_NAME || "(not set)",
       api_key_exists: !!process.env.CLOUDINARY_API_KEY,
@@ -31,7 +29,7 @@ function ensureCloudinaryConfigured() {
 export const uploadVideoToCloudinary = async (fileBuffer, fileName) => {
   ensureCloudinaryConfigured();
   return new Promise((resolve, reject) => {
-    const uploadStream = v2.uploader.upload_stream(
+    const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: 'video',
         folder: 'yourtube_videos',
@@ -63,7 +61,7 @@ export const uploadVideoToCloudinary = async (fileBuffer, fileName) => {
 export const uploadThumbnailToCloudinary = async (fileBuffer, videoId) => {
   ensureCloudinaryConfigured();
   return new Promise((resolve, reject) => {
-    const uploadStream = v2.uploader.upload_stream(
+    const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: 'image',
         folder: 'yourtube_thumbnails',
@@ -93,7 +91,7 @@ export const uploadThumbnailToCloudinary = async (fileBuffer, videoId) => {
  * @returns {Promise} Cloudinary deletion response
  */
 export const deleteVideoFromCloudinary = async (publicId) => {
-  return v2.uploader.destroy(publicId, { resource_type: 'video' });
+  return cloudinary.uploader.destroy(publicId, { resource_type: 'video' });
 };
 
 /**
@@ -102,7 +100,7 @@ export const deleteVideoFromCloudinary = async (publicId) => {
  * @returns {Promise} Cloudinary deletion response
  */
 export const deleteThumbnailFromCloudinary = async (publicId) => {
-  return v2.uploader.destroy(publicId, { resource_type: 'image' });
+  return cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
 };
 
-export default v2;
+export default cloudinary;
