@@ -3,8 +3,14 @@ import { Server } from "socket.io";
 let ioInstance = null;
 
 export function initSocket(httpServer) {
+  // Derive allowed origins from env (FRONTEND_URL or VERCEL_URL) to restrict socket CORS in production
+  const rawOrigins = process.env.CORS_ALLOWED_ORIGINS || process.env.FRONTEND_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+  const socketCors = rawOrigins
+    ? { origin: rawOrigins.split(",").map((s) => s.trim()).filter(Boolean), methods: ["GET", "POST"] }
+    : { origin: "*", methods: ["GET", "POST"] };
+
   const io = new Server(httpServer, {
-    cors: { origin: "*", methods: ["GET", "POST"] },
+    cors: socketCors,
   });
 
   ioInstance = io;

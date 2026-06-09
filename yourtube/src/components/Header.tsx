@@ -90,9 +90,13 @@ const Header = () => {
             value={searchQuery}
             onKeyDown={(e) => e.key === "Enter" && handleSearch(e as any)}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="rounded-l-full border-r-0 focus-visible:ring-0"
+            className="rounded-l-full border border-slate-300 border-r-0 bg-background focus-visible:ring-0 dark:border-slate-600"
           />
-          <Button type="submit" variant="secondary" className="rounded-r-full px-6 border border-l-0">
+          <Button
+            type="submit"
+            variant="secondary"
+            className="rounded-r-full px-6 border border-slate-300 border-l-0 bg-background dark:border-slate-600"
+          >
             <Search className="w-5 h-5" />
           </Button>
         </div>
@@ -120,7 +124,22 @@ const Header = () => {
           </DropdownMenuContent>
         </DropdownMenu>
         {authError && !user && (
-          <span className="text-xs text-red-500 hidden md:block">{authError}</span>
+          (() => {
+            const lower = (authError || "").toLowerCase();
+            const isUnauthorized = lower.includes("unauthorized-domain") || lower.includes("authentication blocked") || lower.includes("blocked from this domain");
+            if (isUnauthorized) {
+              const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "";
+              const firebaseLink = projectId
+                ? `https://console.firebase.google.com/project/${projectId}/authentication/providers`
+                : "https://console.firebase.google.com/u/0/";
+              return (
+                <span className="text-xs text-red-500 hidden md:block">
+                  {authError} — <a className="underline" href={firebaseLink} target="_blank" rel="noopener noreferrer">Add authorized domain in Firebase</a>
+                </span>
+              );
+            }
+            return <span className="text-xs text-red-500 hidden md:block">{authError}</span>;
+          })()
         )}
         {user ? (
           <>

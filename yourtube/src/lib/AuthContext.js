@@ -5,8 +5,10 @@ import {
   signInWithRedirect,
   getRedirectResult,
   signOut,
+  setPersistence,
+  browserLocalPersistence,
 } from "firebase/auth";
-import { auth, provider } from "./firebase";
+import { auth, provider, FIREBASE_AUTH_DOMAIN } from "./firebase";
 import axiosInstance from "./axiosinstance";
 
 const defaultContext = {
@@ -41,6 +43,7 @@ export const UserProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     setUser(null);
+    setAuthError(null);
     localStorage.removeItem("user");
     localStorage.removeItem("token");
     if (auth) {
@@ -83,6 +86,7 @@ export const UserProvider = ({ children }) => {
     setGoogleSigningIn(true);
 
     try {
+      await setPersistence(auth, browserLocalPersistence);
       const result = await signInWithPopup(auth, provider);
       const firebaseUser = result?.user || auth.currentUser;
       if (firebaseUser) {
@@ -98,18 +102,18 @@ export const UserProvider = ({ children }) => {
 
       // Map known Firebase auth errors to friendlier messages
       const getFriendlyAuthError = (err) => {
-        if (!err) return "Sign in failed";
+        if (!err) return "Sign in failed.";
         const c = err.code || "";
         const msg = err.message || "";
         if (c === "auth/unauthorized-domain" || msg.includes("unauthorized-domain")) {
-          return "Authentication blocked: add yourtube-yglv.vercel.app to Firebase Authorized Domains";
+          return `Google sign-in is blocked from this domain. Verify ${FIREBASE_AUTH_DOMAIN} and the current site in Firebase Authorized Domains.`;
         }
         if (c === "auth/network-request-failed") {
           return "Network error during sign in. Check your connection and try again.";
         }
         if (c === "auth/cancelled-popup-request") return "Previous sign-in was cancelled. Please try again.";
         if (c === "auth/popup-closed-by-user") return "Sign in was cancelled. Please try again.";
-        return msg || "Sign in failed";
+        return msg || "Sign in failed.";
       };
 
       // Common user-facing messages
@@ -120,6 +124,11 @@ export const UserProvider = ({ children }) => {
       } else if (code === "auth/popup-closed-by-user") {
         setAuthError(getFriendlyAuthError(error));
       } else if (code === "auth/popup-blocked" || code === "auth/web-storage-unsupported") {
+        try {
+          await setPersistence(auth, browserLocalPersistence);
+        } catch (persistErr) {
+          console.warn("Could not set auth persistence before redirect:", persistErr);
+        }
         // Try redirect fallback
         try {
           await signInWithRedirect(auth, provider);
@@ -159,9 +168,10 @@ export const UserProvider = ({ children }) => {
         // ignore no-redirect-result errors
         if (err?.code && err.code !== "auth/no-auth-event") {
           console.error("Error processing redirect result:", err);
-          // If redirect processing failed due to unauthorized domain, show friendly message
           if (err.code === "auth/unauthorized-domain" || (err.message || "").includes("unauthorized-domain")) {
-            setAuthError("Authentication blocked: add yourtube-yglv.vercel.app to Firebase Authorized Domains");
+            setAuthError(
+              `Google sign-in is blocked from this domain. Verify ${FIREBASE_AUTH_DOMAIN} and the current site in Firebase Authorized Domains.`
+            );
           }
         }
       }

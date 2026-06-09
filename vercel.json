@@ -5,6 +5,7 @@
     { "src": "server/api/index.js", "use": "@vercel/node", "config": { "maxDuration": 60 } }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/server/api/index.js" }
+    { "src": "/uploads(?:/(.*))?", "dest": "/server/api/index.js" },
+    { "src": "/api(?:/(.*))?", "dest": "/server/api/index.js" }
   ]
 }

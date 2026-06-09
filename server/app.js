@@ -51,23 +51,10 @@ app.use(
 
 app.use(express.json({ limit: "30mb" }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
-// Only serve `/uploads` if the directory exists and is readable. In serverless
-// environments serving project files is unsafe; uploads should be served from
-// an external storage or from /tmp for ephemeral files.
-try {
-  if (!isServerless) {
-    app.use("/uploads", express.static(uploadsDir));
-  } else {
-    // In serverless, do not expose project uploads directory. If UPLOADS_DIR
-    // points to an external mount, and exists, attempt to serve it.
-    const fs = await import("fs/promises");
-    const stat = await fs.stat(uploadsDir).catch(() => null);
-    if (stat && stat.isDirectory()) {
-      app.use("/uploads", express.static(uploadsDir));
-    }
-  }
-} catch (e) {
-  // ignore - do not crash startup due to missing uploads dir
+// Register uploads static middleware when an uploads directory is configured.
+// In serverless deployments this is typically /tmp/uploads or an external mount.
+if (uploadsDir) {
+  app.use("/uploads", express.static(uploadsDir));
 }
 
 app.get("/", (req, res) => {

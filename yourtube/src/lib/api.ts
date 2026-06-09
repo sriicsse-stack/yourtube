@@ -21,14 +21,25 @@ export function getBackendUrl(): string {
 export function getVideoUrl(filepath?: string): string {
   if (!filepath) return "";
   const normalized = filepath.replace(/\\/g, "/");
-  // video files are served from the backend root (without /api)
+  if (normalized.startsWith("http")) return normalized;
   const apiBase = getBackendUrl().replace(/\/$/, "");
   const backendRoot = apiBase.replace(/\/api$/i, "");
   const root =
     backendRoot ||
     (typeof window !== "undefined" ? window.location.origin : "") ||
     apiBase.replace(/\/$/, "");
-  const path = normalized.startsWith("/") ? normalized.slice(1) : normalized;
+
+  let publicPath = normalized;
+  const uploadsIndex = normalized.indexOf("/uploads/");
+  if (uploadsIndex >= 0) {
+    publicPath = normalized.slice(uploadsIndex + 1);
+  } else if (normalized.startsWith("/uploads/")) {
+    publicPath = normalized.slice(1);
+  } else if (normalized.startsWith("uploads/")) {
+    publicPath = normalized;
+  }
+
+  const path = publicPath.startsWith("/") ? publicPath.slice(1) : publicPath;
   return `${root}/${path}`;
 }
 

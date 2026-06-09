@@ -8,11 +8,15 @@ if (!process.env.NEXT_PUBLIC_BACKEND_URL && process.env.NODE_ENV === "production
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   images: {
-    // Use BACKEND_URL (or NEXT_PUBLIC_BACKEND_URL) at build time so production
-    // doesn't hardcode localhost. Falls back to localhost for local dev only.
+    // Use the configured backend API URL at build time so production doesn't hardcode localhost.
+    // Support both NEXT_PUBLIC_BACKEND_URL and NEXT_PUBLIC_API_URL aliases.
     remotePatterns: (() => {
       const patterns = [] as any[];
-      const urlStr = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000";
+      const urlStr =
+        process.env.NEXT_PUBLIC_API_URL ||
+        process.env.NEXT_PUBLIC_BACKEND_URL ||
+        process.env.BACKEND_URL ||
+        "http://localhost:5000";
       try {
         const u = new URL(urlStr);
         patterns.push({
@@ -28,11 +32,19 @@ const nextConfig: NextConfig = {
     })(),
   },
   env: {
-    BACKEND_URL: process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000/api",
-    NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000/api",
+    BACKEND_URL:
+      process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api",
+    NEXT_PUBLIC_BACKEND_URL:
+      process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || process.env.BACKEND_URL || "http://localhost:5000/api",
+    NEXT_PUBLIC_API_URL:
+      process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "http://localhost:5000/api",
   },
   async rewrites() {
-    const rawBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || "/api";
+    const rawBackendUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      process.env.NEXT_PUBLIC_BACKEND_URL ||
+      process.env.BACKEND_URL ||
+      "/api";
     const backendUrl = rawBackendUrl.replace(/\/+$/, "");
     const normalized = backendUrl.match(/\/api$/i)
       ? backendUrl

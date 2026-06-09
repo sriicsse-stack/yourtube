@@ -47,7 +47,14 @@ export const downloadVideo = async (req, res) => {
 
     // In serverless, files may not be present on disk. Prefer external storage.
     const defaultUploads = helperUploadsDir || path.join(process.cwd(), "uploads");
-    let filePath = path.resolve(normalizeFilePath(vid.filepath || ""));
+    let filePath = normalizeFilePath(vid.filepath || "").replace(/^\/+/, "");
+    if (!path.isAbsolute(filePath)) {
+      if (filePath.startsWith("uploads/")) {
+        filePath = filePath.replace(/^uploads\//, "");
+      }
+      filePath = path.join(defaultUploads, filePath);
+    }
+    filePath = path.resolve(filePath);
     if (helperIsServerless && !filePath.startsWith(defaultUploads)) {
       // If the filepath is not within the configured uploads dir, we cannot access it in serverless.
       return res.status(503).json({ message: "Video downloads are not available in serverless deployment. Please use external storage." });

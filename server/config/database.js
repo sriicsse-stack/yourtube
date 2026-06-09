@@ -81,7 +81,11 @@ export async function connectDatabase() {
   }
 }
 
+let dbHandlersRegistered = false;
 export function setupDatabaseEventHandlers() {
+  if (dbHandlersRegistered) return;
+  dbHandlersRegistered = true;
+
   mongoose.connection.on("error", (err) => {
     console.error("MongoDB runtime error:", err.message);
   });
