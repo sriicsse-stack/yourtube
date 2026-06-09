@@ -1,15 +1,37 @@
-import admin from "firebase-admin";
 import path from "path";
 
-// Initialize Firebase Admin SDK if not already done
-if (!admin.apps.length) {
-  admin.initializeApp({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-  });
-}
+let admin = null;
+let bucket = null;
+let firebaseError = null;
 
-const bucket = admin.storage().bucket();
+/**
+ * Lazy initialize Firebase Admin SDK on first use
+ * If Firebase is unavailable, backend continues to run
+ */
+function initializeFirebase() {
+  if (bucket) return; // Already initialized
+  if (firebaseError) throw firebaseError; // Previously failed
+
+  try {
+    // Dynamically import firebase-admin to prevent top-level import errors
+    admin = require("firebase-admin");
+
+    if (!admin.apps || !admin.apps.length) {
+      admin.initializeApp({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+      });
+    }
+
+    bucket = admin.storage().bucket();
+    console.log("✓ Firebase Admin SDK initialized successfully");
+  } catch (error) {
+    firebaseError = error;
+    console.error("✗ Firebase Admin SDK initialization failed:", error.message);
+    console.error("  Backend will continue without Firebase Storage support");
+    throw error;
+  }
+}
 
 /**
  * Upload a file to Firebase Storage
@@ -21,6 +43,9 @@ const bucket = admin.storage().bucket();
  */
 export async function uploadToFirebase(fileBuffer, fileName, folder, mimeType) {
   try {
+    // Ensure Firebase is initialized before upload
+    initializeFirebase();
+
     // Generate unique filename to prevent collisions
     const timestamp = Date.now();
     const randomStr = Math.random().toString(36).substring(2, 8);
@@ -55,7 +80,7 @@ export async function uploadToFirebase(fileBuffer, fileName, folder, mimeType) {
       path: storagePath,
     };
   } catch (error) {
-    console.error("Firebase upload error:", error);
+    console.error("Firebase upload error:", error.message);
     throw new Error(`Failed to upload file to Firebase Storage: ${error.message}`);
   }
 }
@@ -68,10 +93,14 @@ export async function uploadToFirebase(fileBuffer, fileName, folder, mimeType) {
 export async function deleteFromFirebase(storagePath) {
   try {
     if (!storagePath) return;
+    
+    // Ensure Firebase is initialized before delete
+    initializeFirebase();
+    
     const file = bucket.file(storagePath);
     await file.delete();
   } catch (error) {
-    console.error("Firebase delete error:", error);
+    console.error("Firebase delete error:", error.message);
     // Don't throw - deleting non-existent files should not fail
   }
 }
