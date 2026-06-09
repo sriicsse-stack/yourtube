@@ -4,7 +4,7 @@ const videochema = mongoose.Schema(
     videotitle: { type: String, required: true },
     filename: { type: String, required: true },
     filetype: { type: String, required: true },
-    filepath: { type: String, required: true },
+    filepath: { type: String, required: true }, // Now stores Firebase Storage URL instead of local path
     filesize: { type: Number, required: true },
     videochanel: { type: String, required: true },
     description: { type: String, default: "" },
@@ -24,6 +24,9 @@ const videochema = mongoose.Schema(
     views: { type: Number, default: 0 },
     uploader: { type: String },
     uploaderId: { type: mongoose.Schema.Types.ObjectId, ref: "user" },
+    // Firebase Storage paths (for deletion purposes)
+    _firebaseVideoPath: { type: String, default: "" },
+    _firebaseThumbnailPath: { type: String, default: "" },
   },
   {
     timestamps: true,

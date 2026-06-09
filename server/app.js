@@ -52,54 +52,14 @@ app.use(
 
 app.use(express.json({ limit: "30mb" }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
-// Register uploads static middleware when an uploads directory is configured.
-// In serverless deployments this is typically /tmp/uploads or an external mount.
-if (uploadsDir) {
+// Static middleware for local development only (not used in production with Firebase Storage)
+if (uploadsDir && !isServerless) {
   app.use("/uploads", express.static(uploadsDir));
 }
 
-// Explicit handler for /uploads/* to serve files (required in serverless where Vercel routes intercept)
-// Using regex to match /uploads/* paths - Express 5 compatible syntax
-app.get(/^\/uploads\/(.+)$/, async (req, res) => {
-  try {
-    const filepath = req.params[0]; // First capture group from regex
-    if (!filepath) {
-      return res.status(400).json({ error: "File path required" });
-    }
-    
-    // Prevent directory traversal attacks
-    if (filepath.includes("..") || filepath.startsWith("/")) {
-      return res.status(400).json({ error: "Invalid file path" });
-    }
-    
-    const fullPath = path.join(uploadsDir, filepath);
-    
-    // Verify the resolved path is still within uploadsDir
-    if (!fullPath.startsWith(uploadsDir)) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-    
-    // Check if file exists
-    try {
-      await fs.access(fullPath);
-    } catch (e) {
-      return res.status(404).json({ error: "File not found" });
-    }
-    
-    // Stream the file
-    res.sendFile(fullPath, (err) => {
-      if (err) {
-        console.error("Error sending file:", err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Error serving file" });
-        }
-      }
-    });
-  } catch (error) {
-    console.error("File serving error:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+// NOTE: In production (Vercel serverless), videos are served directly from Firebase Storage via URLs
+// stored in MongoDB. No local file serving needed. The explicit /uploads route is commented out
+// to prevent confusion - use Firebase Storage URLs directly from video documents.
 
 app.get("/", (req, res) => {
   res.send("You tube backend (serverless) is working");

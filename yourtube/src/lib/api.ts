@@ -21,7 +21,13 @@ export function getBackendUrl(): string {
 export function getVideoUrl(filepath?: string): string {
   if (!filepath) return "";
   const normalized = filepath.replace(/\\/g, "/");
-  if (normalized.startsWith("http")) return normalized;
+  
+  // If it's already a full URL (HTTP/HTTPS), return as-is (Firebase Storage URL)
+  if (normalized.startsWith("http://") || normalized.startsWith("https://")) {
+    return normalized;
+  }
+  
+  // Fallback for legacy local paths (local dev/old deployments)
   const apiBase = getBackendUrl().replace(/\/$/, "");
   const backendRoot = apiBase.replace(/\/api$/i, "");
   const root =
