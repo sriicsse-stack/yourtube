@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs/promises";
 import mongoose from "mongoose";
 import userroutes from "./routes/auth.js";
 import videoroutes from "./routes/video.js";
@@ -56,6 +57,48 @@ app.use(express.urlencoded({ limit: "30mb", extended: true }));
 if (uploadsDir) {
   app.use("/uploads", express.static(uploadsDir));
 }
+
+// Explicit handler for /uploads/* to serve files (required in serverless where Vercel routes intercept)
+app.get("/uploads/:filepath(*)", async (req, res) => {
+  try {
+    const { filepath } = req.params;
+    if (!filepath) {
+      return res.status(400).json({ error: "File path required" });
+    }
+    
+    // Prevent directory traversal attacks
+    if (filepath.includes("..") || filepath.startsWith("/")) {
+      return res.status(400).json({ error: "Invalid file path" });
+    }
+    
+    const fullPath = path.join(uploadsDir, filepath);
+    
+    // Verify the resolved path is still within uploadsDir
+    if (!fullPath.startsWith(uploadsDir)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+    
+    // Check if file exists
+    try {
+      await fs.access(fullPath);
+    } catch (e) {
+      return res.status(404).json({ error: "File not found" });
+    }
+    
+    // Stream the file
+    res.sendFile(fullPath, (err) => {
+      if (err) {
+        console.error("Error sending file:", err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: "Error serving file" });
+        }
+      }
+    });
+  } catch (error) {
+    console.error("File serving error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 app.get("/", (req, res) => {
   res.send("You tube backend (serverless) is working");
