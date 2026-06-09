@@ -1,4 +1,4 @@
-import fs from "fs/promises";
+﻿import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import ffmpeg from "fluent-ffmpeg";
@@ -7,7 +7,12 @@ import video from "../Modals/video.js";
 import { normalizeVideoList, normalizeFilePath } from "../utils/normalize.js";
 import os from "os";
 import { uploadsDir as helperUploadsDir, isServerless as helperIsServerless } from "../filehelper/filehelper.js";
-import { uploadToFirebase, deleteFromFirebase } from "../services/firebaseStorage.js";
+import {
+  uploadVideoToCloudinary,
+  uploadThumbnailToCloudinary,
+  deleteVideoFromCloudinary,
+  deleteThumbnailFromCloudinary,
+} from "../services/cloudinaryUpload.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isServerless = !!(process.env.VERCEL || helperIsServerless);
@@ -17,8 +22,13 @@ const uploadsBaseDir = path.resolve(
 
 const ffmpegPath = ffmpegStatic;
 if (ffmpegPath) {
-  ffmpeg.setFfmpegPath(ffmpegPath);
+  try {
+    ffmpeg.setFfmpegPath(ffmpegPath);
+  } catch (e) {
+    console.warn("Failed to set ffmpeg path:", e && e.message ? e.message : e);
+  }
 }
+console.log("FFmpeg path:", ffmpegPath || "(not found)");
 
 function getPublicUploadPath(filepath) {
   if (!filepath) return "";
@@ -44,6 +54,10 @@ function resolveDiskPath(filepath) {
     normalized = normalized.replace(/^uploads\//, "");
   }
   return path.join(uploadsBaseDir, normalized);
+}
+
+function isRemoteUrl(filepath) {
+  return typeof filepath === "string" && /^(https?:)?\/\//i.test(filepath);
 }
 
 async function ensureThumbnailDir() {
@@ -80,9 +94,9 @@ async function generateAutoThumbnail(videoFilePath) {
   const outputPath = path.join(thumbnailsDir, outputFilename);
 
   return new Promise((resolve, reject) => {
-    ffmpeg(absoluteVideoPath)
+      ffmpeg(absoluteVideoPath)
       .screenshots({
-        timestamps: ["1.5"],
+        timestamps: ["0.5"],
         filename: outputFilename,
         folder: thumbnailsDir,
         size: "640x360",
@@ -97,6 +111,10 @@ async function generateAutoThumbnail(videoFilePath) {
 }
 
 export const uploadvideo = async (req, res) => {
+  console.log("Received upload request. user=", req.user?.email || req.user?.name || req.user?._id || "<anonymous>");
+  console.log("Uploaded files:", req.files);
+  console.log("Request body:", req.body);
+
   const videoFile = req.files?.file?.[0];
   if (!videoFile) {
     return res.status(400).json({ message: "Please upload a valid video file" });
@@ -111,45 +129,138 @@ export const uploadvideo = async (req, res) => {
   const thumbnailFile = req.files?.thumbnailFile?.[0];
   const thumbnailUrl = typeof req.body.thumbnail === "string" ? req.body.thumbnail.trim() : "";
 
+  // Ensure we have the file buffer
+  let videoBuffer = videoFile.buffer;
+  if (!videoBuffer && videoFile.path) {
+    try {
+      videoBuffer = await fs.readFile(videoFile.path);
+    } catch (error) {
+      console.error("Failed to read video file:", error);
+      return res.status(400).json({ message: "Failed to read video file" });
+    }
+  }
+
+  if (!videoBuffer) {
+    return res.status(400).json({ message: "No video file data available" });
+  }
+
   try {
-    // Upload video file to Firebase Storage
-    let videoFileUrl = "";
-    let videoStoragePath = "";
-    if (videoFile.buffer) {
-      const uploadResult = await uploadToFirebase(
-        videoFile.buffer,
-        videoFile.originalname,
-        "videos",
-        videoFile.mimetype
-      );
-      videoFileUrl = uploadResult.url;
-      videoStoragePath = uploadResult.path;
-    } else {
-      return res.status(400).json({ message: "Video file buffer not available" });
+    // Upload video to Cloudinary
+    console.log("Uploading video to Cloudinary...", {
+      originalname: videoFile.originalname,
+      size: videoFile.size,
+      mimetype: videoFile.mimetype,
+    });
+
+    let videoUploadResult;
+    try {
+      videoUploadResult = await uploadVideoToCloudinary(videoBuffer, videoFile.originalname);
+    } catch (error) {
+      console.error("CLOUDINARY ERROR: video upload failed", error);
+      console.error("MESSAGE:", error && error.message);
+      console.error("STACK:", error && error.stack);
+      return res.status(500).json({ message: "Cloudinary video upload failed" });
     }
 
-    // Handle custom thumbnail upload
+    const cloudinaryVideoUrl = videoUploadResult && videoUploadResult.secure_url;
+    console.log("Video uploaded to Cloudinary:", cloudinaryVideoUrl);
+
+    // Handle thumbnail - either custom upload or generate from video
     let customThumbnailUrl = "";
-    let customThumbnailStoragePath = "";
-    if (thumbnailFile && thumbnailFile.buffer) {
-      const uploadResult = await uploadToFirebase(
-        thumbnailFile.buffer,
-        thumbnailFile.originalname,
-        "thumbnails",
-        thumbnailFile.mimetype
-      );
-      customThumbnailUrl = uploadResult.url;
-      customThumbnailStoragePath = uploadResult.path;
+    let customThumbnailId = "";
+    let autoGeneratedThumbnailUrl = "";
+    let autoGeneratedThumbnailId = "";
+
+    if (thumbnailFile) {
+      // Upload custom thumbnail
+      try {
+        let thumbnailBuffer = thumbnailFile.buffer;
+        if (!thumbnailBuffer && thumbnailFile.path) {
+          thumbnailBuffer = await fs.readFile(thumbnailFile.path);
+        }
+        if (thumbnailBuffer) {
+          try {
+            const thumbUploadResult = await uploadThumbnailToCloudinary(
+              thumbnailBuffer,
+              `custom_${Date.now()}`
+            );
+            customThumbnailUrl = thumbUploadResult.secure_url;
+            customThumbnailId = thumbUploadResult.public_id || "";
+            console.log("Custom thumbnail uploaded to Cloudinary:", customThumbnailUrl);
+          } catch (error) {
+            console.error("CLOUDINARY ERROR: custom thumbnail upload failed", error);
+            console.error("MESSAGE:", error && error.message);
+            console.error("STACK:", error && error.stack);
+          }
+        }
+      } catch (error) {
+        console.error("Reading custom thumbnail failed:", error && error.message ? error.message : error);
+      }
+    } else if (thumbnailUrl) {
+      customThumbnailUrl = thumbnailUrl;
     }
 
-    // Use provided thumbnail URL or custom uploaded one
-    const finalThumbnailUrl = customThumbnailUrl || thumbnailUrl;
+    // If no custom thumbnail, generate one from video
+    if (!customThumbnailUrl) {
+      try {
+        console.log("Generating thumbnail from video...");
+        // First, write video to temp location for FFmpeg processing
+        const tmpDir = isServerless ? path.join(os.tmpdir(), "uploads") : uploadsBaseDir;
+        await fs.mkdir(tmpDir, { recursive: true }).catch(() => {});
+        const tmpVideoPath = path.join(tmpDir, `${Date.now()}-${videoFile.originalname.replace(/\s+/g, "_")}`);
+        await fs.writeFile(tmpVideoPath, videoBuffer);
 
-    // Create video document
+        // Generate thumbnail
+        const thumbnailsDir = await ensureThumbnailDir();
+        const filename = path.basename(videoFile.originalname, path.extname(videoFile.originalname));
+        const outputFilename = `${filename}-${Date.now()}.png`;
+        const outputPath = path.join(thumbnailsDir, outputFilename);
+
+        await new Promise((resolve, reject) => {
+          ffmpeg(tmpVideoPath)
+            .screenshots({
+              timestamps: ["0.5"],
+              filename: outputFilename,
+              folder: thumbnailsDir,
+              size: "640x360",
+            })
+            .on("end", () => {
+              resolve();
+            })
+            .on("error", (error) => {
+              reject(error);
+            });
+        });
+
+        // Read the generated thumbnail and upload to Cloudinary
+        const thumbnailBuffer = await fs.readFile(outputPath);
+        try {
+          const thumbUploadResult = await uploadThumbnailToCloudinary(
+            thumbnailBuffer,
+            `auto_${Date.now()}`
+          );
+          autoGeneratedThumbnailUrl = thumbUploadResult.secure_url;
+          autoGeneratedThumbnailId = thumbUploadResult.public_id || "";
+        } catch (error) {
+          console.error("CLOUDINARY ERROR: auto-generated thumbnail upload failed", error);
+          console.error("MESSAGE:", error && error.message);
+          console.error("STACK:", error && error.stack);
+        } finally {
+          await fs.unlink(tmpVideoPath).catch(() => {});
+          await fs.unlink(outputPath).catch(() => {});
+        }
+      } catch (error) {
+        console.error("Thumbnail generation failed:", error);
+        // Continue without thumbnail if generation fails
+      }
+    }
+
+    // Save video record to MongoDB with Cloudinary URLs
     const file = new video({
       videotitle: req.body.videotitle,
       filename: videoFile.originalname,
-      filepath: videoFileUrl, // Store Firebase URL instead of local path
+      filepath: cloudinaryVideoUrl, // Store Cloudinary URL instead of local path
+      cloudinaryVideoPublicId: videoUploadResult.public_id || "",
       filetype: videoFile.mimetype,
       filesize: videoFile.size,
       videochanel: req.user?.channelname || req.body.videochanel || "Unknown Channel",
@@ -158,25 +269,18 @@ export const uploadvideo = async (req, res) => {
       description: req.body.description || "",
       category: req.body.category || "General",
       tags,
-      thumbnail: finalThumbnailUrl || "",
+      thumbnail: customThumbnailUrl || autoGeneratedThumbnailUrl || "",
       customThumbnailUrl: customThumbnailUrl || "",
-      autoGeneratedThumbnailUrl: "", // Can be generated later if needed
+      autoGeneratedThumbnailUrl: autoGeneratedThumbnailUrl || "",
+      cloudinaryThumbnailPublicId: customThumbnailId || autoGeneratedThumbnailId || "",
       visibility: req.body.visibility || "public",
       language: req.body.language || "en",
-      // Store Firebase storage paths for potential future deletion
-      _firebaseVideoPath: videoStoragePath,
-      _firebaseThumbnailPath: customThumbnailStoragePath,
     });
-    
     await file.save();
-    return res.status(201).json({ 
-      message: "File uploaded successfully", 
-      video: file,
-      videoUrl: videoFileUrl // Return Firebase URL to frontend
-    });
+    return res.status(201).json({ message: "File uploaded successfully", video: file });
   } catch (error) {
     console.error("Upload error:", error);
-    return res.status(500).json({ message: `Upload failed: ${error.message}` });
+    return res.status(500).json({ message: error.message || "Something went wrong" });
   }
 };
 
@@ -205,6 +309,9 @@ export const getVideoById = async (req, res) => {
 export const updateVideo = async (req, res) => {
   const { id } = req.params;
   try {
+    const existing = await video.findById(id);
+    if (!existing) return res.status(404).json({ message: "Video not found" });
+
     const update = {};
     const allowed = [
       "videotitle",
@@ -219,9 +326,37 @@ export const updateVideo = async (req, res) => {
       if (req.body[k] !== undefined) update[k] = req.body[k];
     }
 
-    // If thumbnail file uploaded, prefer it
+    if (typeof req.body.thumbnail === "string" && req.body.thumbnail.trim()) {
+      update.customThumbnailUrl = req.body.thumbnail.trim();
+    }
+
     if (req.files?.thumbnailFile?.[0]) {
-      update.customThumbnailUrl = getPublicUploadPath(req.files.thumbnailFile[0].path);
+      const thumbnailFile = req.files.thumbnailFile[0];
+      let thumbnailBuffer = thumbnailFile.buffer;
+      if (!thumbnailBuffer && thumbnailFile.path) {
+        thumbnailBuffer = await fs.readFile(thumbnailFile.path);
+      }
+
+      if (thumbnailBuffer) {
+        if (existing.cloudinaryThumbnailPublicId) {
+          try {
+            await deleteThumbnailFromCloudinary(existing.cloudinaryThumbnailPublicId);
+          } catch (error) {
+            console.warn("Failed to remove old Cloudinary thumbnail:", error.message || error);
+          }
+        }
+
+        try {
+          const thumbUploadResult = await uploadThumbnailToCloudinary(
+            thumbnailBuffer,
+            `update_${Date.now()}`
+          );
+          update.customThumbnailUrl = thumbUploadResult.secure_url || "";
+          update.cloudinaryThumbnailPublicId = thumbUploadResult.public_id || "";
+        } catch (error) {
+          console.error("Failed to upload updated thumbnail to Cloudinary:", error);
+        }
+      }
     }
 
     const updated = await video.findByIdAndUpdate(id, { $set: update }, { new: true });
@@ -238,14 +373,34 @@ export const deleteVideo = async (req, res) => {
   try {
     const doc = await video.findByIdAndDelete(id);
     if (!doc) return res.status(404).json({ message: "Video not found" });
-    // attempt remove file and thumbnails if present
-    try {
-      if (doc.filepath) await fs.unlink(resolveDiskPath(doc.filepath)).catch(() => {});
-      if (doc.customThumbnailUrl) await fs.unlink(resolveDiskPath(doc.customThumbnailUrl)).catch(() => {});
-      if (doc.autoGeneratedThumbnailUrl) await fs.unlink(resolveDiskPath(doc.autoGeneratedThumbnailUrl)).catch(() => {});
-    } catch (e) {
-      console.warn("Failed to remove media files for deleted video:", e.message || e);
+
+    const cleanupTasks = [];
+    if (doc.cloudinaryVideoPublicId) {
+      cleanupTasks.push(
+        deleteVideoFromCloudinary(doc.cloudinaryVideoPublicId).catch((error) => {
+          console.warn("Failed to remove Cloudinary video:", error.message || error);
+        })
+      );
     }
+    if (doc.cloudinaryThumbnailPublicId) {
+      cleanupTasks.push(
+        deleteThumbnailFromCloudinary(doc.cloudinaryThumbnailPublicId).catch((error) => {
+          console.warn("Failed to remove Cloudinary thumbnail:", error.message || error);
+        })
+      );
+    }
+
+    if (doc.filepath && !isRemoteUrl(doc.filepath)) {
+      cleanupTasks.push(fs.unlink(resolveDiskPath(doc.filepath)).catch(() => {}));
+    }
+    if (doc.customThumbnailUrl && !isRemoteUrl(doc.customThumbnailUrl)) {
+      cleanupTasks.push(fs.unlink(resolveDiskPath(doc.customThumbnailUrl)).catch(() => {}));
+    }
+    if (doc.autoGeneratedThumbnailUrl && !isRemoteUrl(doc.autoGeneratedThumbnailUrl)) {
+      cleanupTasks.push(fs.unlink(resolveDiskPath(doc.autoGeneratedThumbnailUrl)).catch(() => {}));
+    }
+
+    await Promise.all(cleanupTasks);
     return res.status(200).json({ message: "Deleted" });
   } catch (error) {
     console.error("Delete video error:", error);
@@ -282,6 +437,11 @@ export async function generateMissingThumbnails() {
     for (const doc of videosWithoutThumbnail) {
       try {
         if (!doc.filepath) continue;
+        // If filepath is a remote URL (Cloudinary), skip disk-based thumbnail generation
+        if (typeof doc.filepath === 'string' && /^(https?:)?\/\//i.test(doc.filepath)) {
+          console.log(`Skipping thumbnail generation for remote filepath for video ${doc._id}`);
+          continue;
+        }
         const autoGeneratedThumbnailUrl = await generateAutoThumbnail(resolveDiskPath(doc.filepath));
         doc.autoGeneratedThumbnailUrl = autoGeneratedThumbnailUrl;
         doc.thumbnail = autoGeneratedThumbnailUrl;

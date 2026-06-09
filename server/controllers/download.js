@@ -48,6 +48,11 @@ export const downloadVideo = async (req, res) => {
     // In serverless, files may not be present on disk. Prefer external storage.
     const defaultUploads = helperUploadsDir || path.join(process.cwd(), "uploads");
     let filePath = normalizeFilePath(vid.filepath || "").replace(/^\/+/, "");
+    const isRemoteFile = /^(https?:)?\/\//i.test(filePath);
+    if (isRemoteFile) {
+      return res.redirect(filePath);
+    }
+
     if (!path.isAbsolute(filePath)) {
       if (filePath.startsWith("uploads/")) {
         filePath = filePath.replace(/^uploads\//, "");
