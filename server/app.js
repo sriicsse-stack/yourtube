@@ -59,9 +59,10 @@ if (uploadsDir) {
 }
 
 // Explicit handler for /uploads/* to serve files (required in serverless where Vercel routes intercept)
-app.get("/uploads/:filepath(*)", async (req, res) => {
+// Using regex to match /uploads/* paths - Express 5 compatible syntax
+app.get(/^\/uploads\/(.+)$/, async (req, res) => {
   try {
-    const { filepath } = req.params;
+    const filepath = req.params[0]; // First capture group from regex
     if (!filepath) {
       return res.status(400).json({ error: "File path required" });
     }
