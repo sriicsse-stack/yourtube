@@ -8,6 +8,13 @@ import { migrateLegacyThumbnails, generateMissingThumbnails } from "./controller
 
 dotenv.config();
 
+// Startup diagnostics for Cloudinary env vars
+console.log("Cloudinary configured:", {
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key_exists: !!process.env.CLOUDINARY_API_KEY,
+  api_secret_exists: !!process.env.CLOUDINARY_API_SECRET,
+});
+
 const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 

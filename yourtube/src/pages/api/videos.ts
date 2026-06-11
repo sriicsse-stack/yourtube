@@ -1,6 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import connectDB from "@/lib/db";
 import Video from "@/lib/models/Video";
+import { getVideoUrl } from "@/lib/api";
+import { isPlayableVideo, verifyRemoteUrlAccessible } from "@/lib/videoValidation";
 
 export default async function handler(
   req: NextApiRequest,
@@ -10,7 +12,21 @@ export default async function handler(
     await connectDB();
     if (req.method === "GET") {
       const videos = await Video.find().sort({ createdAt: -1 });
-      res.status(200).json(videos);
+      const validated = await Promise.all(
+        videos.map(async (video) => {
+          const playable = isPlayableVideo(video);
+          if (!playable) {
+            return null;
+          }
+
+          const sourceUrl = getVideoUrl(video.filepath || "");
+          const accessible = await verifyRemoteUrlAccessible(sourceUrl);
+          return accessible ? video : null;
+        })
+      );
+
+      const playableVideos = validated.filter(Boolean);
+      res.status(200).json(playableVideos);
       return;
     }
     res.status(405).json({ error: "Method not allowed" });

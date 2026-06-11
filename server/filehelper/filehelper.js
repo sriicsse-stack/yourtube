@@ -20,6 +20,12 @@ const uploadsDir = path.resolve(process.env.UPLOADS_DIR || defaultUploads);
 const videosDir = path.join(uploadsDir);
 const thumbnailsDir = path.join(uploadsDir, "thumbnails");
 
+// Diagnostic: log chosen storage strategy and paths
+console.log("Filehelper: isServerless=", isServerless);
+console.log("Filehelper: uploadsDir=", uploadsDir);
+console.log("Filehelper: videosDir=", videosDir);
+console.log("Filehelper: thumbnailsDir=", thumbnailsDir);
+
 // Do NOT create directories at module load time when running in serverless.
 // For non-serverless environments, multer's destination will ensure dirs exist.
 

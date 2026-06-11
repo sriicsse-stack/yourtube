@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Videocard from "./videocard";
+import { isPlayableVideo } from "@/lib/videoValidation";
 
 const Videogrid = () => {
   const [videos, setvideo] = useState<any[]>([]);
@@ -12,7 +13,8 @@ const Videogrid = () => {
         const res = await fetch("/api/videos");
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
-        setvideo(Array.isArray(data) ? data : []);
+        const playableVideos = Array.isArray(data) ? data.filter(isPlayableVideo) : [];
+        setvideo(playableVideos);
       } catch (error) {
         seterror("Could not load videos");
         console.log(error);

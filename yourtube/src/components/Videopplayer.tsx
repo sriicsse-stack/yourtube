@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { getVideoUrl } from "@/lib/api";
 import axiosInstance from "@/lib/axiosinstance";
@@ -13,6 +13,7 @@ interface VideoPlayerProps {
     filepath: string;
   };
   onOpenComments?: () => void;
+  onPlaybackError?: () => void;
   nextVideoId?: string | null;
   commentsOpen?: boolean;
 }
@@ -20,15 +21,21 @@ interface VideoPlayerProps {
 export default function VideoPlayer({
   video,
   onOpenComments,
+  onPlaybackError,
   nextVideoId,
   commentsOpen,
 }: VideoPlayerProps) {
+  useEffect(() => {
+    console.log("VIDEO DATA:", video);
+    console.log("FILEPATH:", video?.filepath);
+  }, [video]);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { user } = useUser();
   const [feedback, setFeedback] = useState<string | null>(null);
   const [watchBlocked, setWatchBlocked] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
   const tapRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null, zone: "" });
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -37,6 +44,17 @@ export default function VideoPlayer({
     setFeedback(msg);
     setTimeout(() => setFeedback(null), 800);
   };
+
+  const videoSource = getVideoUrl(video?.filepath);
+
+  useEffect(() => {
+    if (!videoSource) {
+      setMediaError("Unable to load this video. The source URL is invalid or unavailable.");
+      onPlaybackError?.();
+    } else {
+      setMediaError(null);
+    }
+  }, [videoSource, onPlaybackError]);
 
   const seek = (seconds: number) => {
     if (!videoRef.current) return;
@@ -149,13 +167,39 @@ export default function VideoPlayer({
     };
   }, [video?._id]);
 
+  const handleMediaError = () => {
+    setMediaError("Unable to play this video. It may be broken or unavailable.");
+    onPlaybackError?.();
+  };
+
   return (
     <div
       ref={containerRef}
       className="relative aspect-video bg-black rounded-lg overflow-hidden select-none touch-none"
       onPointerUp={onPointerUp}
     >
-      <video ref={videoRef} className="w-full h-full" playsInline src={getVideoUrl(video?.filepath)} />
+      <video
+        ref={videoRef}
+        className="w-full h-full"
+        playsInline
+        src={videoSource}
+        onError={handleMediaError}
+        onLoadedMetadata={() => setMediaError(null)}
+      />
+      {mediaError && (
+        <div className="absolute inset-0 z-10 bg-black/85 flex flex-col items-center justify-center gap-3 p-4 text-center text-white">
+          <p className="text-lg font-semibold">{mediaError}</p>
+          <p className="text-sm text-white/80 max-w-md">
+            Please return to the homepage or try another video.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="rounded-full bg-white text-black px-4 py-2"
+          >
+            Go Home
+          </button>
+        </div>
+      )}
       <div className="absolute bottom-3 left-3 right-3 flex items-center gap-3 bg-black/50 p-2 rounded-md">
         <button
           onClick={() => {

@@ -3,6 +3,7 @@ import RelatedVideos from "@/components/RelatedVideos";
 import VideoInfo from "@/components/VideoInfo";
 import Videopplayer from "@/components/Videopplayer";
 import axiosInstance from "@/lib/axiosinstance";
+import { isPlayableVideo } from "@/lib/videoValidation";
 import { useRouter } from "next/router";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -22,9 +23,10 @@ const WatchPage = () => {
           axiosInstance.get(`/videos/${id}`),
           axiosInstance.get("/videos"),
         ]);
+        console.log("API currentRes.data:", currentRes.data);
         setCurrentVideo(currentRes.data);
         const list = Array.isArray(allRes.data) ? allRes.data : [];
-        setAllVideos(list);
+        setAllVideos(list.filter(isPlayableVideo));
       } catch (error) {
         console.error(error);
       } finally {
@@ -52,8 +54,9 @@ const WatchPage = () => {
               video={currentVideo}
               onOpenComments={scrollToComments}
               nextVideoId={nextVideo?._id || null}
+              onPlaybackError={() => setCurrentVideo(null)}
             />
-            <VideoInfo video={currentVideo} />
+            {currentVideo && <VideoInfo video={currentVideo} />}
             <div ref={commentsRef}>
               <Comments videoId={id as string} />
             </div>

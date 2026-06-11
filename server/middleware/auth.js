@@ -16,7 +16,9 @@ function getJwtSecret() {
 
 export async function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
+  console.log("Auth middleware: incoming request", { method: req.method, url: req.originalUrl, ip: req.ip });
   if (!authHeader?.startsWith("Bearer ")) {
+    console.warn("Auth middleware: Authorization header missing or invalid", { authorization: !!req.headers.authorization });
     return res.status(401).json({ message: "Authorization token missing" });
   }
 

@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import fs from "fs/promises";
 import mongoose from "mongoose";
 import userroutes from "./routes/auth.js";
-import videoroutes from "./routes/video.js";
+import videoroutes, { adminRoutes } from "./routes/video.js";
 import likeroutes from "./routes/like.js";
 import watchlaterroutes from "./routes/watchlater.js";
 import historyrroutes from "./routes/history.js";
@@ -52,14 +52,12 @@ app.use(
 
 app.use(express.json({ limit: "30mb" }));
 app.use(express.urlencoded({ limit: "30mb", extended: true }));
-// Static middleware for local development only (not used in production with Firebase Storage)
+// Static middleware for local development only (not used in production with Cloudinary Storage)
+// Note: In production (Vercel serverless), videos are served directly from Cloudinary via URLs
+// stored in MongoDB. No local file serving needed.
 if (uploadsDir && !isServerless) {
   app.use("/uploads", express.static(uploadsDir));
 }
-
-// NOTE: In production (Vercel serverless), videos are served directly from Firebase Storage via URLs
-// stored in MongoDB. No local file serving needed. The explicit /uploads route is commented out
-// to prevent confusion - use Firebase Storage URLs directly from video documents.
 
 app.get("/", (req, res) => {
   res.send("You tube backend (serverless) is working");
@@ -77,6 +75,7 @@ app.use("/api/user", userroutes);
 app.use("/api/auth", userroutes);
 app.use("/api/users", userroutes);
 app.use("/api/videos", videoroutes);
+app.use("/api/admin", adminRoutes);
 app.use("/api/like", likeroutes);
 app.use("/api/watch", watchlaterroutes);
 app.use("/api/history", historyrroutes);

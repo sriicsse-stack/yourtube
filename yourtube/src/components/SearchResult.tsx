@@ -4,6 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import axiosInstance from "@/lib/axiosinstance";
 import { getPreviewUrl, getBackendUrl } from "@/lib/api";
+import { isPlayableVideo } from "@/lib/videoValidation";
 
 const SearchResult = ({ query }: { query: string }) => {
   const [results, setResults] = useState<any[]>([]);
@@ -20,7 +21,8 @@ const SearchResult = ({ query }: { query: string }) => {
       try {
         const res = await axiosInstance.get("/videos");
         const allVideos = Array.isArray(res.data) ? res.data : [];
-        const filtered = allVideos.filter(
+        const validVideos = allVideos.filter(isPlayableVideo);
+        const filtered = validVideos.filter(
           (vid: any) =>
             vid.videotitle?.toLowerCase().includes(query.toLowerCase()) ||
             vid.videochanel?.toLowerCase().includes(query.toLowerCase())

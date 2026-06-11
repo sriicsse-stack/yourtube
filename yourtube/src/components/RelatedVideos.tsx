@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { getPreviewUrl } from "@/lib/api";
+import { isPlayableVideo } from "@/lib/videoValidation";
 
 interface RelatedVideosProps {
   videos?: Array<{
@@ -21,7 +22,9 @@ export default function RelatedVideos({
   videos,
   currentVideoId,
 }: RelatedVideosProps) {
-  const list = (videos || []).filter((v) => v._id !== currentVideoId);
+  const list = (videos || [])
+    .filter((v) => v._id !== currentVideoId)
+    .filter(isPlayableVideo);
 
   if (list.length === 0) {
     return (

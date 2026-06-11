@@ -4,6 +4,7 @@ import ChannelVideos from "@/components/ChannelVideos";
 import VideoUploader from "@/components/VideoUploader";
 import { useUser } from "@/lib/AuthContext";
 import axiosInstance from "@/lib/axiosinstance";
+import { isPlayableVideo } from "@/lib/videoValidation";
 import { useRouter } from "next/router";
 import React, { useEffect, useState } from "react";
 
@@ -20,7 +21,8 @@ const ChannelPage = () => {
       try {
         const res = await axiosInstance.get("/videos");
         const allVideos = Array.isArray(res.data) ? res.data : [];
-        const channelVideos = allVideos.filter(
+        const validVideos = allVideos.filter(isPlayableVideo);
+        const channelVideos = validVideos.filter(
           (v: any) => v.uploader === id || v.videochanel === user?.channelname
         );
         setVideos(channelVideos);
