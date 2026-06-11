@@ -197,7 +197,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
             <ThumbsDown className="w-4 h-4" /> {comment.dislikes?.length || 0}
           </button>
           <select
-            className="text-xs border rounded px-2 py-1 min-w-[120px]"
+            className="text-xs border border-slate-300 rounded px-2 py-1 min-w-[120px] focus:ring-2 focus:ring-sky-500"
             onChange={(e) => handleTranslate(comment._id, e.target.value)}
             defaultValue=""
           >
@@ -225,7 +225,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               placeholder="Add a reply..."
-              className="min-h-[60px]"
+              className="min-h-[60px] border border-slate-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
             <Button size="sm" onClick={() => handleReply(comment._id)}>
               Reply
@@ -253,7 +253,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              className="text-sm border rounded px-2 py-1 min-w-[140px]"
+              className="text-sm border border-slate-300 rounded px-2 py-1 min-w-[140px] focus:ring-2 focus:ring-sky-500"
             >
               {LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code}>
@@ -265,7 +265,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
               placeholder="Add a comment..."
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              className="min-h-[80px] resize-none border-0 border-b-2 rounded-none focus-visible:ring-0"
+              className="min-h-[80px] resize-none border border-slate-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setNewComment("")} disabled={!newComment.trim()}>

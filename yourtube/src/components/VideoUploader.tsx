@@ -139,7 +139,7 @@ const VideoUploader = ({ channelId, channelName }: any) => {
       <div className="space-y-4">
         {!videoFile ? (
           <div
-            className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:bg-muted transition-colors"
+            className="border-2 border-dashed border-border border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:bg-muted transition-colors"
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-2" />
@@ -193,7 +193,7 @@ const VideoUploader = ({ channelId, channelName }: any) => {
                   onChange={(e) => setVideoTitle(e.target.value)}
                   placeholder="Add a title that describes your video"
                   disabled={isUploading || uploadComplete}
-                  className="mt-1 bg-card text-foreground"
+                  className="mt-1 bg-card text-foreground border border-slate-300 focus-visible:ring-2 focus-visible:ring-sky-500"
                 />
               </div>
               <div>
@@ -204,7 +204,7 @@ const VideoUploader = ({ channelId, channelName }: any) => {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Add a detailed description for your video"
                   disabled={isUploading || uploadComplete}
-                  className="w-full rounded-md border border-border bg-card text-foreground placeholder:text-muted-foreground px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full rounded-md border border-slate-300 bg-card text-foreground placeholder:text-muted-foreground px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   rows={4}
                 />
               </div>
@@ -217,7 +217,7 @@ const VideoUploader = ({ channelId, channelName }: any) => {
                     onChange={(e) => setCategory(e.target.value)}
                     placeholder="General"
                     disabled={isUploading || uploadComplete}
-                    className="mt-1 bg-card text-foreground"
+                    className="mt-1 bg-card text-foreground border border-slate-300 focus-visible:ring-2 focus-visible:ring-sky-500"
                   />
                 </div>
                 <div>
@@ -227,7 +227,7 @@ const VideoUploader = ({ channelId, channelName }: any) => {
                     value={visibility}
                     onChange={(e) => setVisibility(e.target.value)}
                     disabled={isUploading || uploadComplete}
-                    className="mt-1 w-full rounded-md border border-border bg-card text-foreground px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="mt-1 w-full rounded-md border border-slate-300 bg-card text-foreground px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option className="bg-card text-foreground" value="public">Public</option>
                     <option className="bg-card text-foreground" value="unlisted">Unlisted</option>
@@ -244,7 +244,7 @@ const VideoUploader = ({ channelId, channelName }: any) => {
                     accept="image/*"
                     onChange={handleThumbnailChange}
                     disabled={isUploading || uploadComplete}
-                    className="mt-1 w-full rounded-md border border-border bg-card text-foreground px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="mt-1 w-full rounded-md border border-slate-300 bg-card text-foreground px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   {thumbnailPreviewUrl && (
                     // preview may be a local object URL; using native <img> here
@@ -264,7 +264,7 @@ const VideoUploader = ({ channelId, channelName }: any) => {
                     onChange={(e) => setThumbnailUrl(e.target.value)}
                     placeholder="Optional thumbnail image URL"
                     disabled={isUploading || uploadComplete}
-                    className="mt-1 bg-card text-foreground"
+                    className="mt-1 bg-card text-foreground border border-slate-300 focus-visible:ring-2 focus-visible:ring-sky-500"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
                     Optional custom thumbnail. Image upload takes priority over the URL.
