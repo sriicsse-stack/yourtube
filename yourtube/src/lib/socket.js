@@ -1,13 +1,15 @@
 import { io } from "socket.io-client";
-import { getBackendUrl } from "./api";
+import { getBackendRootUrl } from "./api";
 
 let socket = null;
 
 export function getSocket() {
   if (socket) return socket;
-  const backend = getBackendUrl().replace(/\/$/, "");
+  const backend = getBackendRootUrl();
   try {
-    socket = io(backend, { transports: ["websocket"], reconnection: true });
+    socket = backend
+      ? io(backend, { transports: ["websocket"], reconnection: true })
+      : io({ transports: ["websocket"], reconnection: true });
   } catch (err) {
     console.error("Socket init failed:", err);
   }

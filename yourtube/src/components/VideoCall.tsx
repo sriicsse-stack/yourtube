@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
-import { getBackendUrl } from "@/lib/api";
+import { getBackendRootUrl } from "@/lib/api";
 import { useUser } from "@/lib/AuthContext";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -19,6 +19,14 @@ export default function VideoCall() {
   const [cameraOff, setCameraOff] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [cameraStatus, setCameraStatus] = useState("unknown");
+  const [microphoneStatus, setMicrophoneStatus] = useState("unknown");
+  const [socketStatus, setSocketStatus] = useState("disconnected");
+  const [peerStatus, setPeerStatus] = useState("idle");
+  const [localTracksCount, setLocalTracksCount] = useState(0);
+  const [videoTracksCount, setVideoTracksCount] = useState(0);
+  const [audioTracksCount, setAudioTracksCount] = useState(0);
+  const isDev = process.env.NODE_ENV === "development";
 
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -34,8 +42,12 @@ export default function VideoCall() {
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
+    console.log("PEER_CREATED", { targetSocketId });
+    setPeerStatus("connecting");
+
     pc.onicecandidate = (e) => {
       if (e.candidate && socketRef.current) {
+        console.log("ICE_CANDIDATE_SENT", { targetSocketId, candidate: e.candidate });
         socketRef.current.emit("ice-candidate", {
           roomId,
           candidate: e.candidate,
@@ -45,8 +57,19 @@ export default function VideoCall() {
     };
 
     pc.ontrack = (e) => {
+      console.log("REMOTE_STREAM_RECEIVED", e.streams[0]);
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = e.streams[0];
+        setPeerStatus("connected");
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log("PEER_CONNECTION_STATE", pc.connectionState);
+      if (pc.connectionState === "connected") {
+        setPeerStatus("connected");
+      } else if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
+        setPeerStatus("failed");
       }
     };
 
@@ -74,48 +97,86 @@ export default function VideoCall() {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       console.log("MEDIA_STREAM_SUCCESS", stream);
 
+      const videoCount = stream.getVideoTracks().length;
+      const audioCount = stream.getAudioTracks().length;
+      setLocalTracksCount(stream.getTracks().length);
+      setVideoTracksCount(videoCount);
+      setAudioTracksCount(audioCount);
+      setCameraStatus(videoCount > 0 ? "active" : "off");
+      setMicrophoneStatus(audioCount > 0 ? "active" : "off");
+      console.log("VIDEO_TRACK_COUNT", videoCount);
+      console.log("AUDIO_TRACK_COUNT", audioCount);
+
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      setJoined(true);
 
-      const socket = io(getBackendUrl(), { transports: ["websocket"] });
+      const backendRoot = getBackendRootUrl();
+      const socket = backendRoot
+        ? io(backendRoot, { transports: ["websocket"], reconnection: true })
+        : io({ transports: ["websocket"], reconnection: true });
       socketRef.current = socket;
-      socket.on("connect", () => console.log("SOCKET_CONNECTED", socket.id));
-      socket.on("connect_error", (err) => console.error("SOCKET_CONNECT_ERROR", err));
-      socket.on("disconnect", (reason) => console.log("SOCKET_DISCONNECTED", reason));
+      setSocketStatus("connecting");
 
-      socket.emit("join-room", {
-        roomId,
-        userId: user?._id || "guest",
-        userName: user?.name || "Guest",
+      socket.on("connect", () => {
+        console.log("SOCKET_CONNECTED", socket.id);
+        setSocketStatus("connected");
+        socket.emit("join-room", {
+          roomId,
+          userId: user?.id,
+          userName: user?.name || "Anonymous",
+        });
+        console.log("JOIN_ROOM_SENT", { roomId, socketId: socket.id });
+      });
+
+      socket.on("disconnect", (reason) => {
+        console.log("SOCKET_DISCONNECTED", reason);
+        setSocketStatus("disconnected");
+      });
+
+      socket.on("connect_error", (err) => {
+        console.error("SOCKET_CONNECT_ERROR", err);
+        setSocketStatus("error");
+        toast.error(`Socket connect error: ${err?.message || String(err)}`);
       });
 
       socket.on("existing-peers", async (peers: any[]) => {
+        console.log("EXISTING_PEERS_RECEIVED", peers);
         if (peers.length > 0) {
           const pc = createPeerConnection(peers[0].socketId);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           socket.emit("offer", { roomId, offer, targetSocketId: peers[0].socketId });
+          console.log("OFFER_SENT", { targetSocketId: peers[0].socketId });
         }
       });
 
-      socket.on("user-joined", async ({ socketId }) => {
+      socket.on("user-joined", ({ socketId }) => {
+        console.log("USER_JOINED", { socketId });
         toast.info("User joined the call");
       });
 
       socket.on("offer", async ({ offer, socketId }) => {
+        console.log("OFFER_RECEIVED", { socketId, offer });
         const pc = createPeerConnection(socketId);
         await pc.setRemoteDescription(offer);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { roomId, answer, targetSocketId: socketId });
+        console.log("ANSWER_SENT", { targetSocketId: socketId });
       });
 
       socket.on("answer", async ({ answer }) => {
+        console.log("ANSWER_RECEIVED", answer);
         await pcRef.current?.setRemoteDescription(answer);
       });
 
       socket.on("ice-candidate", async ({ candidate }) => {
-        await pcRef.current?.addIceCandidate(candidate);
+        console.log("ICE_CANDIDATE_RECEIVED", candidate);
+        try {
+          await pcRef.current?.addIceCandidate(candidate);
+        } catch (candidateError) {
+          console.error("ICE_CANDIDATE_ERROR", candidateError);
+        }
       });
 
       socket.on("call-ended", () => {
@@ -123,7 +184,6 @@ export default function VideoCall() {
         endCall();
       });
 
-      setJoined(true);
       toast.success("Joined room");
     } catch (error: any) {
       console.error("MEDIA_STREAM_ERROR", error);
@@ -137,6 +197,28 @@ export default function VideoCall() {
       }
     }
   };
+
+  useEffect(() => {
+    if (!joined || !localStreamRef.current || !localVideoRef.current) {
+      return;
+    }
+
+    const video = localVideoRef.current;
+    video.srcObject = localStreamRef.current;
+    console.log("LOCAL_VIDEO_ATTACHED", video.srcObject);
+
+    const playPromise = video.play();
+    if (playPromise && typeof playPromise.then === "function") {
+      playPromise
+        .then(() => {
+          console.log("LOCAL_VIDEO_PLAY_SUCCESS");
+        })
+        .catch((playError: any) => {
+          console.error("LOCAL_VIDEO_PLAY_ERROR", playError);
+          toast.error(`Video play error: ${playError?.name}: ${playError?.message}`);
+        });
+    }
+  }, [joined]);
 
   const toggleMute = () => {
     localStreamRef.current?.getAudioTracks().forEach((t) => {
@@ -200,6 +282,8 @@ export default function VideoCall() {
     pcRef.current = null;
     localStreamRef.current = null;
     setJoined(false);
+    setSocketStatus("disconnected");
+    setPeerStatus("idle");
     setSharing(false);
     setRecording(false);
   };
@@ -242,8 +326,17 @@ export default function VideoCall() {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="aspect-video bg-black rounded-lg overflow-hidden">
-              <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+            <div className="aspect-video bg-black rounded-lg overflow-hidden relative">
+              <video
+                ref={localVideoRef}
+                autoPlay
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+                onLoadedMetadata={() => console.log("LOCAL_VIDEO_EVENT: onLoadedMetadata", localVideoRef.current?.videoWidth, localVideoRef.current?.videoHeight)}
+                onCanPlay={() => console.log("LOCAL_VIDEO_EVENT: onCanPlay", localVideoRef.current?.readyState)}
+                onPlaying={() => console.log("LOCAL_VIDEO_EVENT: onPlaying", localVideoRef.current?.paused, localVideoRef.current?.ended)}
+              />
               <span className="absolute bottom-2 left-2 text-white text-xs bg-black/50 px-2 rounded">You</span>
             </div>
             <div className="aspect-video bg-black rounded-lg overflow-hidden relative">
@@ -251,6 +344,21 @@ export default function VideoCall() {
               <span className="absolute bottom-2 left-2 text-white text-xs bg-black/50 px-2 rounded">Remote</span>
             </div>
           </div>
+
+          {isDev ? (
+            <div className="rounded-xl bg-white/90 border border-slate-200 p-4 text-sm text-slate-800 shadow-sm">
+              <div className="mb-2 font-semibold">Debug status</div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md bg-slate-100 p-2">Camera: {cameraStatus}</div>
+                <div className="rounded-md bg-slate-100 p-2">Microphone: {microphoneStatus}</div>
+                <div className="rounded-md bg-slate-100 p-2">Socket: {socketStatus}</div>
+                <div className="rounded-md bg-slate-100 p-2">Peer: {peerStatus}</div>
+                <div className="rounded-md bg-slate-100 p-2">Tracks: {localTracksCount}</div>
+                <div className="rounded-md bg-slate-100 p-2">Video tracks: {videoTracksCount}</div>
+                <div className="rounded-md bg-slate-100 p-2">Audio tracks: {audioTracksCount}</div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap gap-2 justify-center">
             <Button variant={muted ? "destructive" : "secondary"} onClick={toggleMute}>

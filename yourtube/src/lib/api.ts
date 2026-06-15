@@ -18,6 +18,11 @@ export function getBackendUrl(): string {
   return `${normalized}/api`;
 }
 
+export function getBackendRootUrl(): string {
+  const backendUrl = getBackendUrl().replace(/\/+$/, "");
+  return backendUrl.replace(/\/api$/i, "");
+}
+
 export function getVideoUrl(filepath?: string): string {
   if (!filepath) return "";
   const normalized = filepath.replace(/\\/g, "/");
