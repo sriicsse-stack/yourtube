@@ -66,12 +66,22 @@ export default function VideoCall() {
     }
 
     try {
+      console.log("MEDIA_REQUEST_START: Enumerating media devices");
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      console.log("AVAILABLE_DEVICES", devices);
+
+      console.log("MEDIA_REQUEST_START: Requesting camera/microphone with constraints", { video: true, audio: true });
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      console.log("MEDIA_STREAM_SUCCESS", stream);
+
       localStreamRef.current = stream;
       if (localVideoRef.current) localVideoRef.current.srcObject = stream;
 
       const socket = io(getBackendUrl(), { transports: ["websocket"] });
       socketRef.current = socket;
+      socket.on("connect", () => console.log("SOCKET_CONNECTED", socket.id));
+      socket.on("connect_error", (err) => console.error("SOCKET_CONNECT_ERROR", err));
+      socket.on("disconnect", (reason) => console.log("SOCKET_DISCONNECTED", reason));
 
       socket.emit("join-room", {
         roomId,
@@ -115,9 +125,16 @@ export default function VideoCall() {
 
       setJoined(true);
       toast.success("Joined room");
-    } catch (error) {
-      toast.error("Could not access camera/microphone");
-      console.error(error);
+    } catch (error: any) {
+      console.error("MEDIA_STREAM_ERROR", error);
+      try {
+        const name = error?.name || "Error";
+        const message = error?.message || JSON.stringify(error);
+        toast.error(`${name}: ${message}`);
+      } catch (e) {
+        console.error("MEDIA_STREAM_ERROR: Failed to read error details", e);
+        toast.error("Could not access camera/microphone");
+      }
     }
   };
 
