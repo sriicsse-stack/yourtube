@@ -41,9 +41,23 @@ function signToken(user) {
   );
 }
 
+function sanitizeUser(user) {
+  if (!user) return null;
+  const cleaned = user.toObject ? user.toObject() : { ...user };
+  delete cleaned.passwordHash;
+  delete cleaned.resetToken;
+  delete cleaned.resetExpires;
+  delete cleaned.otpCode;
+  delete cleaned.otpExpires;
+  delete cleaned.otpMethod;
+  return cleaned;
+}
+
 function getSmtpConfig() {
-  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.EMAIL_PASSWORD;
+  const user =
+    process.env.SMTP_USER || process.env.EMAIL_USER || process.env.SMTP_EMAIL || process.env.EMAIL_USER_ALT;
+  const pass =
+    process.env.SMTP_PASS || process.env.EMAIL_PASSWORD || process.env.SMTP_PASSWORD || process.env.EMAIL_PASS;
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
   const port = Number(process.env.SMTP_PORT || 587);
   const secure = port === 465;
@@ -86,11 +100,13 @@ async function sendResetEmail(user, token) {
 async function sendOtpEmail(user, otp) {
   const smtp = getSmtpConfig();
   if (!smtp.user || !smtp.pass) {
-    console.warn(`SMTP credentials are missing. OTP for ${user.email}: ${otp}`);
-    return;
+    const masked = getMaskedUser(smtp.user);
+    const msg = `SMTP credentials not configured. Set SMTP_USER and SMTP_PASS. Current SMTP user: ${masked}`;
+    console.error(msg);
+    throw new Error(msg);
   }
 
-  console.log(`Sending OTP email to ${user.email} via ${smtp.host}:${smtp.port}`);
+  console.log(`Sending OTP email to ${user.email} via ${smtp.host}:${smtp.port} (user=${getMaskedUser(smtp.user)})`);
   const transporter = nodemailer.createTransport({
     host: smtp.host,
     port: smtp.port,
@@ -165,7 +181,7 @@ function getIstTheme(state) {
 
 async function sendOtpSms(user, otp) {
   const phoneDisplay = user.phone || "registered mobile number";
-  console.log(`Simulated SMS to ${phoneDisplay}: Your verification code is ${otp}`);
+  console.log(`Simulated SMS to ${phoneDisplay}: OTP sent (masked)`);
   return;
 }
 
@@ -178,7 +194,7 @@ export const signup = async (req, res) => {
     const passwordHash = hashPassword(password);
     const user = await users.create({ email, name, passwordHash });
     const token = signToken(user);
-    return res.status(201).json({ result: user, token });
+    return res.status(201).json({ result: sanitizeUser(user), token });
   } catch (err) {
     console.error("Signup error:", err);
     return res.status(500).json({ message: "Something went wrong" });
@@ -193,7 +209,7 @@ export const loginWithPassword = async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     if (!verifyPassword(password, user.passwordHash)) return res.status(401).json({ message: "Invalid credentials" });
     const token = signToken(user);
-    return res.status(200).json({ result: user, token });
+    return res.status(200).json({ result: sanitizeUser(user), token });
   } catch (err) {
     console.error("Login error:", err);
     return res.status(500).json({ message: "Something went wrong" });
@@ -259,7 +275,7 @@ export const login = async (req, res) => {
 
     const token = signToken(existingUser);
     return res.status(isNew ? 201 : 200).json({
-      result: existingUser,
+      result: sanitizeUser(existingUser),
       token,
     });
   } catch (error) {
@@ -284,7 +300,7 @@ export const updateprofile = async (req, res) => {
       { new: true }
     );
     if (!updatedata) return res.status(404).json({ message: "User not found" });
-    return res.status(200).json(updatedata);
+    return res.status(200).json(sanitizeUser(updatedata));
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Something went wrong" });
@@ -397,6 +413,7 @@ export const trackWatchTime = async (req, res) => {
 
 export const requestOtp = async (req, res) => {
   const { email } = req.body;
+  console.log(`[requestOtp] incoming request for email=${email}`);
   if (!email) return res.status(400).json({ success: false, error: "Email is required" });
   try {
     const user = await users.findOne({ email });
@@ -418,29 +435,24 @@ export const requestOtp = async (req, res) => {
       if (method === "mobile") {
         await sendOtpSms(user, user.otpCode);
       } else {
-        await sendOtpEmail(user, user.otpCode);
+        // If SMTP not configured, return explicit error instead of silent fallback
+        if (!isEmailConfigured()) {
+        const smtp = getSmtpConfig();
+        const masked = getMaskedUser(smtp.user);
+        const errMsg = `SMTP not configured. Set SMTP_USER and SMTP_PASS. Current SMTP user: ${masked}`;
+        console.error(errMsg);
+        return res.status(500).json({ success: false, error: "Failed to send OTP. Email provider is not configured." });
+      }
+      await sendOtpEmail(user, user.otpCode);
       }
     } catch (sendError) {
-      console.error("Failed to send OTP:", sendError);
-      return res.status(500).json({ success: false, error: "Failed to send OTP" });
+      console.error("Failed to send OTP:", sendError?.message || sendError);
+      return res.status(500).json({ success: false, error: "Failed to send OTP. Please try again later." });
     }
 
-    return res.status(200).json({
-      success: true,
-      method,
-      message:
-        method === "email"
-          ? `OTP sent to ${user.email}`
-          : `OTP sent to your registered mobile number`,
-      otp:
-        method === "email"
-          ? isEmailConfigured()
-            ? undefined
-            : user.otpCode
-          : process.env.NODE_ENV !== "production"
-          ? user.otpCode
-          : undefined,
-    });
+    // Always return a generic success message. Never expose otp or method in API responses.
+    const genericMsg = "OTP sent successfully. Please check your email.";
+    return res.status(200).json({ success: true, message: genericMsg });
   } catch (error) {
     console.error("Request OTP error:", error);
     return res.status(500).json({ success: false, error: "Something went wrong" });
@@ -480,7 +492,7 @@ export const sendOtp = async (req, res) => {
     await user.save();
 
     const token = signToken(user);
-    return res.status(200).json({ success: true, result: user, token });
+    return res.status(200).json({ success: true, result: sanitizeUser(user), token });
   } catch (error) {
     console.error("Verify OTP error:", error);
     return res.status(500).json({ success: false, error: "Something went wrong" });
