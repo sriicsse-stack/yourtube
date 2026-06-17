@@ -97,10 +97,8 @@ export default function LoginPage() {
         email: formData.email,
       });
       setOtpSent(true);
-      toast.success(response.data.message || "OTP request sent");
-      if (response.data.otp) {
-        toast.success(`OTP: ${response.data.otp}`);
-      }
+      // Show a generic success message; backend no longer returns the OTP.
+      toast.success(response.data.message || "OTP sent successfully. Please check your email.");
     } catch (error: any) {
       const message =
         error?.response?.data?.error ||

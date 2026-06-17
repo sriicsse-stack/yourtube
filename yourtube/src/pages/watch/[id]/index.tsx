@@ -17,10 +17,18 @@ const WatchPage = () => {
 
   useEffect(() => {
     const fetchvideo = async () => {
-      if (!id || typeof id !== "string") return;
+      let videoId: string | undefined;
+      if (id && typeof id === "string") {
+        videoId = id;
+      } else if (typeof window !== "undefined") {
+        // Fallback: extract id from URL path for production builds where router.query may be empty
+        const m = window.location.pathname.match(/\/watch\/([^\/]+)/);
+        if (m && m[1]) videoId = m[1];
+      }
+      if (!videoId) return;
       try {
         const [currentRes, allRes] = await Promise.all([
-          axiosInstance.get(`/videos/${id}`),
+          axiosInstance.get(`/videos/${videoId}`),
           axiosInstance.get("/videos"),
         ]);
         console.log("API currentRes.data:", currentRes.data);

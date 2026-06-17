@@ -159,24 +159,58 @@ const VideoInfo = ({ video }: any) => {
     }
   };
   const handleDownload = async () => {
+    console.log("DOWNLOAD_BUTTON_CLICKED", { videoId: video._id, filename: video.filename });
     if (!user) {
       toast.error("Sign in to download videos");
       return;
     }
     try {
+      console.log("DOWNLOAD_API_REQUEST", { endpoint: `/download/${video._id}`, userId: user._id });
       const res = await axiosInstance.post(
         `/download/${video._id}`,
         { userId: user._id },
         { responseType: "blob" }
       );
-      const url = window.URL.createObjectURL(new Blob([res.data]));
+      console.log("DOWNLOAD_API_SUCCESS", { status: res.status, headers: res.headers });
+      const blob = new Blob([res.data]);
+      console.log("DOWNLOAD_BLOB_CREATED", { size: blob.size, type: blob.type });
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = video.filename || "video.mp4";
+      a.style.display = "none";
+      document.body.appendChild(a);
       a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      console.log("DOWNLOAD_STARTED", { filename: a.download });
       toast.success("Download started");
+      console.log("DOWNLOAD_COMPLETED", { filename: a.download, blobSize: blob.size });
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || "Download failed");
+      let errorMessage = "Download failed";
+      if (error?.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text();
+          const parsed = JSON.parse(text);
+          errorMessage = parsed?.message || text || errorMessage;
+        } catch {
+          try {
+            errorMessage = await error.response.data.text();
+          } catch {
+            errorMessage = error?.message || errorMessage;
+          }
+        }
+      } else if (error?.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      console.error("DOWNLOAD_API_ERROR", {
+        message: errorMessage,
+        originalError: error,
+      });
+      toast.error(errorMessage);
     }
   };
   const handleDislike = async () => {

@@ -5,6 +5,12 @@ import { useRouter } from "next/router";
 import { getVideoUrl } from "@/lib/api";
 import axiosInstance from "@/lib/axiosinstance";
 import { useUser } from "@/lib/AuthContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface VideoPlayerProps {
   video: {
@@ -226,21 +232,73 @@ export default function VideoPlayer({
             className="w-full"
           />
         </div>
-        <select
-          onChange={(e) => {
-            if (!videoRef.current) return;
-            videoRef.current.playbackRate = Number(e.target.value);
-          }}
-          defaultValue={1}
-          className="bg-transparent text-white/90"
-        >
-          <option value={0.5}>0.5x</option>
-          <option value={0.75}>0.75x</option>
-          <option value={1}>1x</option>
-          <option value={1.25}>1.25x</option>
-          <option value={1.5}>1.5x</option>
-          <option value={2}>2x</option>
-        </select>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="px-3 py-1.5 bg-gray-900 text-white border border-gray-700 rounded-lg hover:bg-gray-800 active:bg-gray-700 transition-colors text-xs font-semibold whitespace-nowrap">
+              Speed
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent 
+            align="center"
+            sideOffset={8}
+            className="!bg-gray-900 !text-white !border !border-gray-700 !rounded-lg !shadow-2xl !z-[9999] min-w-[140px]"
+          >
+            <DropdownMenuItem
+              onClick={() => {
+                if (!videoRef.current) return;
+                videoRef.current.playbackRate = 0.5;
+              }}
+              className="!bg-gray-900 hover:!bg-gray-800 !text-white !cursor-pointer focus:!bg-gray-800 rounded-md"
+            >
+              <span className="font-medium">0.5x</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (!videoRef.current) return;
+                videoRef.current.playbackRate = 0.75;
+              }}
+              className="!bg-gray-900 hover:!bg-gray-800 !text-white !cursor-pointer focus:!bg-gray-800 rounded-md"
+            >
+              <span className="font-medium">0.75x</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (!videoRef.current) return;
+                videoRef.current.playbackRate = 1;
+              }}
+              className="!bg-gray-900 hover:!bg-gray-800 !text-white !cursor-pointer focus:!bg-gray-800 rounded-md"
+            >
+              <span className="font-medium">1x (Normal)</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (!videoRef.current) return;
+                videoRef.current.playbackRate = 1.25;
+              }}
+              className="!bg-gray-900 hover:!bg-gray-800 !text-white !cursor-pointer focus:!bg-gray-800 rounded-md"
+            >
+              <span className="font-medium">1.25x</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (!videoRef.current) return;
+                videoRef.current.playbackRate = 1.5;
+              }}
+              className="!bg-gray-900 hover:!bg-gray-800 !text-white !cursor-pointer focus:!bg-gray-800 rounded-md"
+            >
+              <span className="font-medium">1.5x</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                if (!videoRef.current) return;
+                videoRef.current.playbackRate = 2;
+              }}
+              className="!bg-gray-900 hover:!bg-gray-800 !text-white !cursor-pointer focus:!bg-gray-800 rounded-md"
+            >
+              <span className="font-medium">2x</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <input
           type="range"
           min={0}
