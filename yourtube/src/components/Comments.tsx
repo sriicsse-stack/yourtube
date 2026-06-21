@@ -109,7 +109,6 @@ const Comments = ({ videoId }: { videoId: string }) => {
         userid: user._id,
         commentbody: newComment,
         usercommented: user.name,
-        city: user.city || "Unknown",
         language,
       });
       if (res.data.comment) {
@@ -161,7 +160,6 @@ const Comments = ({ videoId }: { videoId: string }) => {
         userid: user._id,
         usercommented: user.name,
         commentbody: replyText,
-        city: user.city || "Unknown",
       });
       setReplyText("");
       setReplyTo(null);
@@ -183,11 +181,9 @@ const Comments = ({ videoId }: { videoId: string }) => {
           {comment.flagged && (
             <span className="text-xs text-yellow-300 bg-yellow-900/20 px-2 py-0.5 rounded">Flagged</span>
           )}
-          {comment.city && (
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <MapPin className="w-3 h-3" /> {comment.city}
-            </span>
-          )}
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <MapPin className="w-3 h-3" /> {comment.city?.trim() && comment.city !== "Unknown" ? comment.city : "Unknown Location"}
+          </span>
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(comment.commentedon))} ago
           </span>

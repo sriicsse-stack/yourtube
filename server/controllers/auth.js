@@ -143,8 +143,8 @@ function getClientIp(req) {
 }
 
 async function lookupLocation(ip) {
-  const defaultLocation = { city: "Chennai", state: "Tamil Nadu", country: "India" };
-  if (!ip) return defaultLocation;
+  const unknownLocation = { city: "Unknown Location", state: "Unknown", country: "Unknown" };
+  if (!ip) return unknownLocation;
 
   try {
     const geoRes = await fetch(
@@ -153,16 +153,16 @@ async function lookupLocation(ip) {
     const geo = await geoRes.json();
     if (geo.status === "success") {
       return {
-        city: geo.city || "Unknown",
-        state: geo.regionName || "Unknown",
-        country: geo.country || "Unknown",
+        city: geo.city?.trim() ? geo.city : "Unknown Location",
+        state: geo.regionName?.trim() ? geo.regionName : "Unknown",
+        country: geo.country?.trim() ? geo.country : "Unknown",
       };
     }
   } catch (err) {
-    console.warn("Location lookup failed, using default location", err);
+    console.warn("Location lookup failed", err);
   }
 
-  return defaultLocation;
+  return unknownLocation;
 }
 
 function getOtpMethodForState(state) {
