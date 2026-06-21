@@ -166,7 +166,7 @@ export default function ModeratorDashboard() {
             <div className="text-center py-12">
               <p className="text-muted-foreground text-lg">No hidden comments</p>
               <p className="text-muted-foreground text-sm mt-2">
-                Comments with 2+ dislikes are automatically hidden
+                Comments with multiple dislikes are flagged for moderator review; moderators can hide or delete as needed.
               </p>
             </div>
           ) : (

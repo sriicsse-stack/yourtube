@@ -196,29 +196,53 @@ export const dislikeComment = async (req, res) => {
       c.dislikes.push(userId);
     }
 
-    // If dislikes exceed threshold, mark comment as hidden and add moderation log
-    const THRESHOLD = Number(process.env.COMMENT_HIDE_THRESHOLD || 2);
-    if (c.dislikes.length >= THRESHOLD) {
-      c.hidden = true;
-      await c.save();
-      // create moderation log
+    // Moderation policy:
+    // - If dislikes reach a low threshold (flag), mark as flagged for moderator review but do not auto-delete/hide.
+    // - Only hide a comment when dislikes reach a higher hide threshold.
+    const FLAG_THRESHOLD = Number(process.env.COMMENT_FLAG_THRESHOLD || 2);
+    const HIDE_THRESHOLD = Number(process.env.COMMENT_HIDE_THRESHOLD || 5);
+
+    if (c.dislikes.length >= FLAG_THRESHOLD && !c.flagged) {
+      c.flagged = true;
       try {
         const Moderation = (await import("../Modals/moderation.js")).default;
         await Moderation.create({
           commentId: c._id,
-          action: "hidden",
-          reason: "Exceeded dislike threshold",
+          action: "flagged",
+          reason: "Exceeded dislike flag threshold",
           metadata: { dislikes: c.dislikes.length },
         });
       } catch (logErr) {
         console.error("Failed to create moderation log:", logErr);
       }
+      await c.save();
+      const io = (await import("../socket/index.js")).getIo();
+      io?.emit("comment:updated", { videoId: c.videoid?.toString(), commentId: c._id, likes: c.likes.length, dislikes: c.dislikes.length, flagged: c.flagged || false, hidden: c.hidden || false });
+      return res.status(200).json({ flagged: true, reason: "Flagged for moderator review" });
+    }
+
+    if (c.dislikes.length >= HIDE_THRESHOLD) {
+      c.hidden = true;
+      try {
+        const Moderation = (await import("../Modals/moderation.js")).default;
+        await Moderation.create({
+          commentId: c._id,
+          action: "hidden",
+          reason: "Exceeded hide threshold",
+          metadata: { dislikes: c.dislikes.length },
+        });
+      } catch (logErr) {
+        console.error("Failed to create moderation log:", logErr);
+      }
+      await c.save();
+      const io = (await import("../socket/index.js")).getIo();
+      io?.emit("comment:updated", { videoId: c.videoid?.toString(), commentId: c._id, likes: c.likes.length, dislikes: c.dislikes.length, hidden: true });
       return res.status(200).json({ hidden: true, reason: "Too many dislikes" });
     }
 
     await c.save();
     const io = (await import("../socket/index.js")).getIo();
-    io?.emit("comment:updated", { videoId: c.videoid?.toString(), commentId: c._id, likes: c.likes.length, dislikes: c.dislikes.length, hidden: c.hidden || false });
+    io?.emit("comment:updated", { videoId: c.videoid?.toString(), commentId: c._id, likes: c.likes.length, dislikes: c.dislikes.length, flagged: c.flagged || false, hidden: c.hidden || false });
     return res.status(200).json({ likes: c.likes.length, dislikes: c.dislikes.length });
   } catch (error) {
     return res.status(500).json({ message: "Something went wrong" });
@@ -231,18 +255,25 @@ export const translateComment = async (req, res) => {
   try {
     const c = await comment.findById(id);
     if (!c) return res.status(404).json({ message: "Comment not found" });
-
+    // Use automatic detection on the remote translate service; preserve original comment body.
     const text = encodeURIComponent(c.commentbody);
-    const url = `https://api.mymemory.translated.net/get?q=${text}&langpair=${c.language || "auto"}|${targetLang}`;
+    const url = `https://api.mymemory.translated.net/get?q=${text}&langpair=auto|${targetLang}`;
     const response = await fetch(url);
     const data = await response.json();
     const translated = data?.responseData?.translatedText || c.commentbody;
+    // try to read detected language from the response if available
+    const detected = (data && (data.responseData?.match?.length ? data.responseData.match[0].segment : null)) || c.language || "und";
 
     c.translatedText = translated;
-    c.language = targetLang;
+    // store detected language if available (non-destructive)
+    try {
+      if (!c.detectedLanguage && typeof detected === "string") c.detectedLanguage = detected;
+    } catch (e) {
+      /* ignore */
+    }
     await c.save();
 
-    return res.status(200).json({ translatedText: translated });
+    return res.status(200).json({ translatedText: translated, detectedLanguage: c.detectedLanguage || c.language || null });
   } catch (error) {
     return res.status(500).json({ message: "Translation failed" });
   }

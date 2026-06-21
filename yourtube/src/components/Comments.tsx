@@ -18,6 +18,8 @@ interface Comment {
   commentedon: string;
   city?: string;
   translatedText?: string;
+  detectedLanguage?: string;
+  flagged?: boolean;
   likes?: string[];
   dislikes?: string[];
   replies?: Comment[];
@@ -132,14 +134,24 @@ const Comments = ({ videoId }: { videoId: string }) => {
   const handleDislike = async (id: string) => {
     if (!user) return;
     const res = await axiosInstance.post(`/comment/dislike/${id}`, { userId: user._id });
-    if (res.data.deleted) toast.info("Comment removed due to dislikes");
+    if (res.data.flagged) {
+      toast.info("Comment flagged for moderator review");
+    } else if (res.data.hidden) {
+      toast.info("Comment hidden due to excessive dislikes");
+    }
     loadComments();
   };
 
   const handleTranslate = async (id: string, targetLang: string) => {
-    const res = await axiosInstance.post(`/comment/translate/${id}`, { targetLang });
-    loadComments();
-    return res.data.translatedText;
+    try {
+      const res = await axiosInstance.post(`/comment/translate/${id}`, { targetLang });
+      loadComments();
+      toast.success("Comment translated");
+      return res.data.translatedText;
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || "Translation failed");
+      throw error;
+    }
   };
 
   const handleReply = async (parentId: string) => {
@@ -168,6 +180,9 @@ const Comments = ({ videoId }: { videoId: string }) => {
       <div className="flex-1">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
           <span className="font-medium text-sm">{comment.usercommented}</span>
+          {comment.flagged && (
+            <span className="text-xs text-yellow-300 bg-yellow-900/20 px-2 py-0.5 rounded">Flagged</span>
+          )}
           {comment.city && (
             <span className="text-xs text-muted-foreground flex items-center gap-1">
               <MapPin className="w-3 h-3" /> {comment.city}
@@ -196,20 +211,13 @@ const Comments = ({ videoId }: { videoId: string }) => {
           >
             <ThumbsDown className="w-4 h-4" /> {comment.dislikes?.length || 0}
           </button>
-          <select
-            className="text-xs border border-slate-300 rounded px-2 py-1 min-w-[120px] focus:ring-2 focus:ring-sky-500"
-            onChange={(e) => handleTranslate(comment._id, e.target.value)}
-            defaultValue=""
+          <button
+            className="text-xs border border-slate-300 rounded px-2 py-1 min-w-[80px] focus:ring-2 focus:ring-sky-500"
+            onClick={() => handleTranslate(comment._id, language)}
+            aria-label="Translate comment"
           >
-            <option value="" disabled>
-              Translate
-            </option>
-            {LANGUAGES.map((l) => (
-              <option key={l.code} value={l.code}>
-                {l.label}
-              </option>
-            ))}
-          </select>
+            Translate
+          </button>
           {!isReply && user && (
             <button
               className="text-xs text-muted-foreground hover:text-foreground"

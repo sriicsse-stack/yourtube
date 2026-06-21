@@ -40,7 +40,7 @@ export default function VideoPlayer({
   const router = useRouter();
   const { user } = useUser();
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [watchBlocked, setWatchBlocked] = useState(false);
+  const [watchNotice, setWatchNotice] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
   const tapRef = useRef({ count: 0, timer: null as ReturnType<typeof setTimeout> | null, zone: "" });
   const [currentTime, setCurrentTime] = useState(0);
@@ -128,37 +128,27 @@ export default function VideoPlayer({
   };
 
   useEffect(() => {
+    // Do a single non-blocking watch-limit check for informational purposes.
+    // Bypass all checks if this video is opened via a shared link (shared=1).
     if (!user?._id) return;
-    let interval: ReturnType<typeof setInterval> | null = null;
-
-    const checkWatchLimit = async () => {
-      try {
-        const res = await axiosInstance.get(`/user/watch-limit/${user._id}`);
-        if (res.data.exceeded) {
-          setWatchBlocked(true);
+    try {
+      const queryShared = router.query?.shared === "1" || (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("shared") === "1");
+      if (queryShared) return; // allow shared viewers to watch without popups or limits
+      (async () => {
+        try {
+          const res = await axiosInstance.get(`/user/watch-limit/${user._id}`);
+          if (res.data.exceeded) {
+            // show a notice but do not block playback
+            setWatchNotice(true);
+          }
+        } catch (error) {
+          console.error("Watch limit check failed", error);
         }
-      } catch (error) {
-        console.error("Watch limit check failed", error);
-      }
-    };
-
-    checkWatchLimit();
-
-    interval = setInterval(async () => {
-      try {
-        const res = await axiosInstance.post(`/user/watch-time/${user._id}`, { seconds: 10 });
-        if (res.data.exceeded) {
-          videoRef.current?.pause();
-          setWatchBlocked(true);
-        }
-      } catch (error) {
-        console.error("Watch time update failed", error);
-      }
-    }, 10000);
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [user?._id]);
+      })();
+    } catch (e) {
+      console.error("Error checking shared flag", e);
+    }
+  }, [user?._id, router.query]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -329,16 +319,13 @@ export default function VideoPlayer({
           </span>
         </div>
       )}
-      {watchBlocked && (
-        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center text-white p-4">
-          <p className="text-lg font-semibold mb-2">Watch limit reached</p>
-          <p className="text-sm mb-4">Upgrade your plan to continue watching</p>
-          <button
-            className="bg-red-600 px-4 py-2 rounded-full"
-            onClick={() => router.push("/subscription")}
-          >
-            Upgrade Plan
-          </button>
+      {watchNotice && (
+        <div className="absolute top-4 left-4 right-4 bg-yellow-600/95 text-black rounded-md p-3 flex items-center justify-between z-30">
+          <div className="text-sm">You have reached your daily watch limit for your plan — consider upgrading for more uninterrupted viewing. Playback is not blocked.</div>
+          <div className="flex items-center gap-2">
+            <button className="text-sm underline" onClick={() => router.push("/subscription")}>Upgrade</button>
+            <button className="text-sm bg-black/10 px-2 py-1 rounded" onClick={() => setWatchNotice(false)}>Dismiss</button>
+          </div>
         </div>
       )}
       <div className="absolute bottom-2 left-2 right-2 flex justify-between text-white/60 text-xs pointer-events-none">

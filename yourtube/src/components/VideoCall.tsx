@@ -82,6 +82,42 @@ export default function VideoCall() {
     return pc;
   };
 
+  const createRoomId = () => {
+    const id = Math.random().toString(36).slice(2, 10);
+    setRoomId(id);
+    try {
+      navigator.clipboard?.writeText(id);
+      toast.success("Room ID created and copied to clipboard");
+    } catch {
+      toast.success("Room ID created");
+    }
+    return id;
+  };
+
+  const copyRoomId = async () => {
+    if (!roomId) return toast.error("No room id to copy");
+    try {
+      await navigator.clipboard.writeText(roomId);
+      toast.success("Room ID copied to clipboard");
+    } catch (e) {
+      toast.error("Failed to copy Room ID");
+    }
+  };
+
+  const shareRoomId = async () => {
+    if (!roomId) return toast.error("No room id to share");
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Join my room", text: `Join my YourTube room: ${roomId}`, url: window.location.href });
+      } else {
+        await navigator.clipboard.writeText(`${window.location.origin}/?room=${roomId}`);
+        toast.success("Shareable link copied to clipboard");
+      }
+    } catch (e) {
+      toast.error("Failed to share room id");
+    }
+  };
+
   const startCall = async () => {
     if (!roomId.trim()) {
       toast.error("Enter a room ID");
@@ -236,7 +272,7 @@ export default function VideoCall() {
 
   const shareScreen = async () => {
     try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: { cursor: "always" }, audio: false });
       const screenTrack = screenStream.getVideoTracks()[0];
       const sender = pcRef.current?.getSenders().find((s) => s.track?.kind === "video");
       if (sender) await sender.replaceTrack(screenTrack);
@@ -250,10 +286,33 @@ export default function VideoCall() {
   };
 
   const startRecording = () => {
-    const stream = localStreamRef.current;
-    if (!stream) return;
+    // Combine local and remote streams (if present) so the recording contains both sides
+    const combined = new MediaStream();
+    try {
+      const local = localStreamRef.current;
+      if (local) local.getTracks().forEach((t) => combined.addTrack(t));
+      const remote = remoteVideoRef.current?.srcObject as MediaStream | null;
+      if (remote) remote.getTracks().forEach((t) => {
+        // duplicate tracks into the combined stream
+        try { combined.addTrack(t.clone ? t.clone() : t); } catch { combined.addTrack(t); }
+      });
+    } catch (e) {
+      console.warn("Error combining streams for recording", e);
+    }
+
+    if (combined.getTracks().length === 0) {
+      toast.error("No media tracks available for recording");
+      return;
+    }
+
     chunksRef.current = [];
-    const recorder = new MediaRecorder(stream);
+    const options: MediaRecorderOptions = { mimeType: "video/webm;codecs=vp9,opus" };
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(combined as MediaStream, options);
+    } catch (err) {
+      recorder = new MediaRecorder(combined as MediaStream);
+    }
     recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
     recorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: "video/webm" });
@@ -267,6 +326,26 @@ export default function VideoCall() {
     recorder.start();
     recorderRef.current = recorder;
     setRecording(true);
+  };
+
+  const pauseRecording = () => {
+    if (!recorderRef.current) return;
+    try {
+      recorderRef.current.pause();
+      toast.info("Recording paused");
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const resumeRecording = () => {
+    if (!recorderRef.current) return;
+    try {
+      recorderRef.current.resume();
+      toast.info("Recording resumed");
+    } catch (e) {
+      console.warn(e);
+    }
   };
 
   const stopRecording = () => {
@@ -316,9 +395,12 @@ export default function VideoCall() {
             value={roomId}
             onChange={(e) => setRoomId(e.target.value)}
           />
-          <Button onClick={startCall} className="w-full">
-            Start / Join Call
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={startCall} className="flex-1">Start / Join Call</Button>
+            <Button variant="outline" onClick={createRoomId}>Create</Button>
+            <Button variant="ghost" onClick={copyRoomId}>Copy</Button>
+            <Button variant="ghost" onClick={shareRoomId}><Share2 className="w-4 h-4" /></Button>
+          </div>
           <p className="text-sm text-muted-foreground">
             Share the room ID with another user to connect via WebRTC.
           </p>
@@ -345,20 +427,12 @@ export default function VideoCall() {
             </div>
           </div>
 
-          {isDev ? (
-            <div className="rounded-xl bg-white/90 border border-slate-200 p-4 text-sm text-slate-800 shadow-sm">
-              <div className="mb-2 font-semibold">Debug status</div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-md bg-slate-100 p-2">Camera: {cameraStatus}</div>
-                <div className="rounded-md bg-slate-100 p-2">Microphone: {microphoneStatus}</div>
-                <div className="rounded-md bg-slate-100 p-2">Socket: {socketStatus}</div>
-                <div className="rounded-md bg-slate-100 p-2">Peer: {peerStatus}</div>
-                <div className="rounded-md bg-slate-100 p-2">Tracks: {localTracksCount}</div>
-                <div className="rounded-md bg-slate-100 p-2">Video tracks: {videoTracksCount}</div>
-                <div className="rounded-md bg-slate-100 p-2">Audio tracks: {audioTracksCount}</div>
-              </div>
-            </div>
-          ) : null}
+          <div className="flex gap-2 items-center justify-center">
+            <div className="px-3 py-1 rounded-full bg-slate-800 text-white text-xs">Socket: {socketStatus}</div>
+            <div className="px-3 py-1 rounded-full bg-slate-800 text-white text-xs">Peer: {peerStatus}</div>
+            <div className="px-3 py-1 rounded-full bg-slate-800 text-white text-xs">Cam: {cameraStatus}</div>
+            <div className="px-3 py-1 rounded-full bg-slate-800 text-white text-xs">Mic: {microphoneStatus}</div>
+          </div>
 
           <div className="flex flex-wrap gap-2 justify-center">
             <Button variant={muted ? "destructive" : "secondary"} onClick={toggleMute}>
@@ -370,13 +444,19 @@ export default function VideoCall() {
             <Button variant={sharing ? "default" : "secondary"} onClick={shareScreen}>
               <Monitor className="w-4 h-4 mr-1" /> Share Screen
             </Button>
-            <Button
-              variant={recording ? "destructive" : "secondary"}
-              onClick={recording ? stopRecording : startRecording}
-            >
-              <Download className="w-4 h-4 mr-1" />
-              {recording ? "Stop Rec" : "Record"}
-            </Button>
+            {!recording ? (
+              <Button variant="secondary" onClick={startRecording}>
+                <Download className="w-4 h-4 mr-1" /> Record
+              </Button>
+            ) : (
+              <>
+                <Button variant="destructive" onClick={stopRecording}>
+                  <Download className="w-4 h-4 mr-1" /> Stop Rec
+                </Button>
+                <Button variant="outline" onClick={pauseRecording}>Pause</Button>
+                <Button variant="outline" onClick={resumeRecording}>Resume</Button>
+              </>
+            )}
             <Button variant="destructive" onClick={endCall}>
               <PhoneOff className="w-4 h-4 mr-1" /> End Call
             </Button>
