@@ -5,6 +5,7 @@ import {
   getVideoById,
   updateVideo,
   deleteVideo,
+  deleteAllVideos,
   getBrokenVideos,
   cleanupBrokenVideos,
 } from "../controllers/video.js";
@@ -27,6 +28,7 @@ routes.post(
 );
 routes.get("/:id", getVideoById);
 routes.put("/:id", authenticate, updateVideo);
+routes.delete("/", authenticate, authorize("admin"), deleteAllVideos);
 routes.delete("/:id", authenticate, deleteVideo);
 routes.post("/cleanup-broken-videos", authenticate, authorize("admin"), cleanupBrokenVideos);
 

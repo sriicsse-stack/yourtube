@@ -514,6 +514,97 @@ async function cleanupVideoAssets(doc) {
   await Promise.all(cleanupTasks);
 }
 
+export const deleteAllVideos = async (req, res) => {
+  try {
+    // Get all videos
+    const allVideos = await video.find({});
+    const totalVideos = allVideos.length;
+
+    if (totalVideos === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No videos to delete",
+        summary: {
+          totalVideosDeleted: 0,
+          cloudinaryVideosDeleted: 0,
+          cloudinaryThumbnailsDeleted: 0,
+          databaseRecordsDeleted: 0,
+          errors: [],
+        },
+      });
+    }
+
+    const summary = {
+      totalVideosDeleted: 0,
+      cloudinaryVideosDeleted: 0,
+      cloudinaryThumbnailsDeleted: 0,
+      databaseRecordsDeleted: 0,
+      errors: [],
+      deletedVideos: [],
+    };
+
+    // Delete each video's assets and record
+    for (const videoDoc of allVideos) {
+      try {
+        const videoTitle = videoDoc.videotitle || "Unknown";
+        
+        // Count Cloudinary resources before cleanup
+        if (videoDoc.cloudinaryVideoPublicId) {
+          summary.cloudinaryVideosDeleted++;
+        }
+        if (videoDoc.cloudinaryThumbnailPublicId) {
+          summary.cloudinaryThumbnailsDeleted++;
+        }
+
+        // Cleanup Cloudinary and local assets
+        await cleanupVideoAssets(videoDoc);
+
+        // Delete the video record from MongoDB
+        await video.findByIdAndDelete(videoDoc._id);
+        summary.databaseRecordsDeleted++;
+        summary.deletedVideos.push({
+          id: videoDoc._id,
+          title: videoTitle,
+          uploader: videoDoc.uploader,
+          uploadedAt: videoDoc.createdAt,
+        });
+      } catch (error) {
+        summary.errors.push({
+          videoId: videoDoc._id,
+          videoTitle: videoDoc.videotitle || "Unknown",
+          error: error.message,
+        });
+      }
+    }
+
+    summary.totalVideosDeleted = summary.databaseRecordsDeleted;
+
+    // Verify deletion
+    const remainingVideos = await video.find({});
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully deleted all ${summary.totalVideosDeleted} video(s)`,
+      summary: {
+        totalVideosDeleted: summary.totalVideosDeleted,
+        cloudinaryVideosDeleted: summary.cloudinaryVideosDeleted,
+        cloudinaryThumbnailsDeleted: summary.cloudinaryThumbnailsDeleted,
+        databaseRecordsDeleted: summary.databaseRecordsDeleted,
+        remainingVideos: remainingVideos.length,
+        errors: summary.errors,
+      },
+      deletedVideos: summary.deletedVideos,
+    });
+  } catch (error) {
+    console.error("Delete all videos error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to delete videos",
+      error: error.message,
+    });
+  }
+};
+
 export const deleteVideo = async (req, res) => {
   const { id } = req.params;
   try {
