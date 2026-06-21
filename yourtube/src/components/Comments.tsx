@@ -39,7 +39,7 @@ const LANGUAGES = [
 ];
 
 // Helper function to get full language name
-const getLanguageName = (code: string | null): string => {
+const getLanguageName = (code?: string | null): string => {
   if (!code) return "Unknown";
   const language = LANGUAGES.find((l) => l.code === code.toLowerCase());
   return language?.label || code.toUpperCase();
