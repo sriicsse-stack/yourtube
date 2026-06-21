@@ -148,7 +148,7 @@ async function lookupLocation(ip) {
 
   try {
     const geoRes = await fetch(
-      `http://ip-api.com/json/${ip}?fields=status,city,regionName,country`
+      `https://ip-api.com/json/${ip}?fields=status,city,regionName,country`
     );
     const geo = await geoRes.json();
     if (geo.status === "success") {

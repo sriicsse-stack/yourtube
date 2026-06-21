@@ -31,3 +31,4 @@ Thumbs.db
 temp_replacements.txt
 uploads/
 server/uploads/
+.vercel

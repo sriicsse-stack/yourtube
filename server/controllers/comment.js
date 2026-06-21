@@ -15,14 +15,15 @@ function getClientIp(req) {
   const forwarded = req.headers["x-forwarded-for"]?.split(",")[0]?.trim();
   const remoteAddress = req.socket?.remoteAddress || "";
   const ip = forwarded || remoteAddress || "";
-  if (ip === "::1" || ip === "127.0.0.1" || ip === "localhost") return "";
-  return ip.replace(/^::ffff:/, "");
+  const normalized = ip.replace(/^::ffff:/, "").trim();
+  if (!normalized || normalized === "::1" || normalized === "127.0.0.1" || normalized === "localhost") return "";
+  return normalized;
 }
 
 async function fetchCityFromIp(ip) {
   if (!ip) return null;
   try {
-    const response = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,city`);
+    const response = await fetch(`https://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,city`);
     const result = await response.json();
     if (result?.status === "success" && result.city?.trim()) {
       return result.city.trim();
@@ -34,19 +35,27 @@ async function fetchCityFromIp(ip) {
 }
 
 async function resolveCity(req, providedCity) {
-  const candidateCity = providedCity?.trim();
-  if (candidateCity && candidateCity !== "Unknown Location" && candidateCity !== "Unknown") {
+  const normalizeCity = (city) => {
+    if (!city) return null;
+    const trimmed = city.trim();
+    if (!trimmed) return null;
+    if (/^unknown/i.test(trimmed)) return null;
+    return trimmed;
+  };
+
+  const candidateCity = normalizeCity(providedCity);
+  if (candidateCity) {
     return candidateCity;
   }
 
-  const userCity = req.user?.city?.trim();
-  if (userCity && userCity !== "Unknown Location" && userCity !== "Unknown") {
+  const userCity = normalizeCity(req.user?.city);
+  if (userCity) {
     return userCity;
   }
 
   const ip = getClientIp(req);
   const cityFromIp = await fetchCityFromIp(ip);
-  return cityFromIp || "Unknown Location";
+  return normalizeCity(cityFromIp) || "Unknown Location";
 }
 
 export const postcomment = async (req, res) => {
@@ -297,24 +306,44 @@ export const translateComment = async (req, res) => {
   try {
     const c = await comment.findById(id);
     if (!c) return res.status(404).json({ message: "Comment not found" });
-    const text = encodeURIComponent(c.commentbody || "");
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${text}`;
+
+    const originalText = c.commentbody || "";
+    const encodedText = encodeURIComponent(originalText);
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodedText}`;
     const response = await fetch(url, { headers: { "Accept": "application/json" } });
     const data = await response.json();
 
-    const translated = Array.isArray(data)
-      ? data[0]?.map((segment) => segment?.[0] || "").join("") || c.commentbody
+    const translateArray = Array.isArray(data) ? data[0] : null;
+    const translated = translateArray && Array.isArray(translateArray)
+      ? translateArray.map((segment) => (Array.isArray(segment) ? segment[0] || "" : "")).join("")
       : Array.isArray(data?.sentences)
-      ? data.sentences.map((segment) => segment.trans || "").join("") || c.commentbody
-      : c.commentbody;
+      ? data.sentences.map((segment) => segment.trans || "").join("")
+      : originalText;
 
-    const detected = typeof data[2] === "string" ? data[2] : c.language || "und";
+    const detected = typeof data[2] === "string"
+      ? data[2]
+      : Array.isArray(data?.[2])
+      ? data[2][0]
+      : c.detectedLanguage || c.language || "und";
+
+    console.log("translateComment", {
+      commentId: id,
+      targetLang,
+      originalText,
+      translated,
+      detectedLanguage: detected,
+      responseShape: Array.isArray(data) ? { length: data.length, first: data[0]?.length } : null,
+    });
 
     c.translatedText = translated;
-    c.detectedLanguage = detected;
+    c.detectedLanguage = detected || "und";
     await c.save();
 
-    return res.status(200).json({ translatedText: translated, detectedLanguage: c.detectedLanguage || c.language || null });
+    return res.status(200).json({
+      translatedText: translated,
+      detectedLanguage: c.detectedLanguage,
+      alreadyInTargetLanguage: translated.trim() === originalText.trim() && detected === targetLang,
+    });
   } catch (error) {
     console.error("Translation error:", error);
     return res.status(500).json({ message: "Translation failed" });

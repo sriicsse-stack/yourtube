@@ -32,30 +32,35 @@ const LANGUAGES = [
   { code: "te", label: "Telugu" },
   { code: "ml", label: "Malayalam" },
   { code: "kn", label: "Kannada" },
+  { code: "bn", label: "Bengali" },
+  { code: "gu", label: "Gujarati" },
+  { code: "mr", label: "Marathi" },
+  { code: "ur", label: "Urdu" },
 ];
 
 const Comments = ({ videoId }: { videoId: string }) => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
-  const [language, setLanguage] = useState("en");
+  const [translateLanguage, setTranslateLanguage] = useState("en");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
+  const [translatingComments, setTranslatingComments] = useState<string[]>([]);
   const { user } = useUser();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const storedLanguage = window.localStorage.getItem("yourtube.commentLanguage");
+    const storedLanguage = window.localStorage.getItem("yourtube.commentTranslateLanguage");
     if (storedLanguage) {
-      setLanguage(storedLanguage);
+      setTranslateLanguage(storedLanguage);
     }
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("yourtube.commentLanguage", language);
-  }, [language]);
+    window.localStorage.setItem("yourtube.commentTranslateLanguage", translateLanguage);
+  }, [translateLanguage]);
 
   const loadComments = useCallback(async () => {
     if (!videoId) return;
@@ -109,7 +114,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
         userid: user._id,
         commentbody: newComment,
         usercommented: user.name,
-        language,
+        language: "und",
       });
       if (res.data.comment) {
         setComments([res.data.comment, ...comments]);
@@ -141,15 +146,47 @@ const Comments = ({ videoId }: { videoId: string }) => {
     loadComments();
   };
 
+  const updateCommentTranslation = (commentsList: Comment[], id: string, translatedText: string, detectedLanguage: string | null) =>
+    commentsList.map((comment) => {
+      if (comment._id === id) {
+        return { ...comment, translatedText, detectedLanguage };
+      }
+      if (comment.replies?.length) {
+        return {
+          ...comment,
+          replies: updateCommentTranslation(comment.replies, id, translatedText, detectedLanguage),
+        };
+      }
+      return comment;
+    });
+
   const handleTranslate = async (id: string, targetLang: string) => {
+    setTranslatingComments((prev) => [...prev, id]);
     try {
       const res = await axiosInstance.post(`/comment/translate/${id}`, { targetLang });
-      loadComments();
-      toast.success("Comment translated");
-      return res.data.translatedText;
+      const translatedText = res.data.translatedText;
+      const detectedLanguage = res.data.detectedLanguage || null;
+      console.log("handleTranslate", {
+        commentId: id,
+        targetLang,
+        translatedText,
+        detectedLanguage,
+        alreadyInTargetLanguage: res.data.alreadyInTargetLanguage,
+      });
+      setComments((prev) => updateCommentTranslation(prev, id, translatedText, detectedLanguage));
+      await loadComments();
+      toast.success(
+        res.data.alreadyInTargetLanguage
+          ? `Comment already in ${LANGUAGES.find((l) => l.code === targetLang)?.label || targetLang}`
+          : "Comment translated"
+      );
+      return translatedText;
     } catch (error: any) {
+      console.error("Translation request failed", error);
       toast.error(error?.response?.data?.message || "Translation failed");
       throw error;
+    } finally {
+      setTranslatingComments((prev) => prev.filter((commentId) => commentId !== id));
     }
   };
 
@@ -182,17 +219,31 @@ const Comments = ({ videoId }: { videoId: string }) => {
             <span className="text-xs text-yellow-300 bg-yellow-900/20 px-2 py-0.5 rounded">Flagged</span>
           )}
           <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <MapPin className="w-3 h-3" /> {comment.city?.trim() && comment.city !== "Unknown" ? comment.city : "Unknown Location"}
+            <MapPin className="w-3 h-3" />
+            {comment.city && !/^unknown/i.test(comment.city.trim())
+              ? comment.city.trim()
+              : "Unknown Location"}
           </span>
+          {comment.detectedLanguage && (
+            <span className="text-xs text-muted-foreground">
+              Source: {comment.detectedLanguage.toUpperCase()}
+            </span>
+          )}
           <span className="text-xs text-muted-foreground">
             {formatDistanceToNow(new Date(comment.commentedon))} ago
           </span>
         </div>
-        <p className="text-sm">{comment.translatedText || comment.commentbody}</p>
-        {comment.translatedText && (
-          <p className="text-xs text-muted-foreground mt-1 italic">
-            Original: {comment.commentbody}
-          </p>
+        {comment.translatedText ? (
+          <>
+            <p className="text-sm">
+              <span className="font-semibold">Translated:</span> {comment.translatedText}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 italic">
+              Original: {comment.commentbody}
+            </p>
+          </>
+        ) : (
+          <p className="text-sm">{comment.commentbody}</p>
         )}
         <div className="flex items-center gap-3 mt-2">
           <button
@@ -208,11 +259,14 @@ const Comments = ({ videoId }: { videoId: string }) => {
             <ThumbsDown className="w-4 h-4" /> {comment.dislikes?.length || 0}
           </button>
           <button
-            className="text-xs border border-slate-300 rounded px-2 py-1 min-w-[80px] focus:ring-2 focus:ring-sky-500"
-            onClick={() => handleTranslate(comment._id, language)}
+            className="text-xs border border-slate-300 rounded px-2 py-1 min-w-[90px] focus:ring-2 focus:ring-sky-500"
+            onClick={() => handleTranslate(comment._id, translateLanguage)}
+            disabled={translatingComments.includes(comment._id)}
             aria-label="Translate comment"
           >
-            Translate
+            {translatingComments.includes(comment._id)
+              ? "Translating..."
+              : `Translate to ${LANGUAGES.find((l) => l.code === translateLanguage)?.label || "Target"}`}
           </button>
           {!isReply && user && (
             <button
@@ -254,17 +308,20 @@ const Comments = ({ videoId }: { videoId: string }) => {
             <AvatarFallback>{user.name?.[0] || "U"}</AvatarFallback>
           </Avatar>
           <div className="flex-1 space-y-2">
-            <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="text-sm border border-slate-300 rounded px-2 py-1 min-w-[140px] focus:ring-2 focus:ring-sky-500"
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-sm font-medium">Translate comments to</label>
+              <select
+                value={translateLanguage}
+                onChange={(e) => setTranslateLanguage(e.target.value)}
+                className="text-sm border border-slate-300 rounded px-2 py-1 min-w-[140px] focus:ring-2 focus:ring-sky-500"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Textarea
               placeholder="Add a comment..."
               value={newComment}
