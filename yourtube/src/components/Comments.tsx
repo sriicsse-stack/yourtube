@@ -18,7 +18,7 @@ interface Comment {
   commentedon: string;
   city?: string;
   translatedText?: string;
-  detectedLanguage?: string;
+  detectedLanguage?: string | null;
   flagged?: boolean;
   likes?: string[];
   dislikes?: string[];
@@ -38,7 +38,9 @@ const LANGUAGES = [
   { code: "ur", label: "Urdu" },
 ];
 
-const Comments = ({ videoId }: { videoId: string }) => {
+type SocketPayload = { videoId?: string; comment?: Comment };
+
+const Comments = ({ videoId }: { videoId: string }): React.ReactElement => {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [translateLanguage, setTranslateLanguage] = useState("en");
@@ -62,7 +64,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
     window.localStorage.setItem("yourtube.commentTranslateLanguage", translateLanguage);
   }, [translateLanguage]);
 
-  const loadComments = useCallback(async () => {
+  const loadComments = useCallback(async (): Promise<void> => {
     if (!videoId) return;
     try {
       const res = await axiosInstance.get(`/comment/${videoId}`);
@@ -77,19 +79,19 @@ const Comments = ({ videoId }: { videoId: string }) => {
   useEffect(() => {
     if (videoId) loadComments();
     const socket = getSocket();
-    const onPosted = (payload: any) => {
+    const onPosted = (payload: SocketPayload) => {
       if (payload?.videoId === videoId) {
-        // prepend new comment
-        setComments((prev) => [payload.comment, ...prev]);
+        // prepend new comment if comment exists
+        if (payload.comment) setComments((prev) => [payload.comment as Comment, ...prev]);
       }
     };
-    const onUpdated = (payload: any) => {
+    const onUpdated = (payload: SocketPayload) => {
       if (payload?.videoId === videoId) {
         // reload comments for simplicity
         loadComments();
       }
     };
-    const onDeleted = (payload: any) => {
+    const onDeleted = (payload: SocketPayload) => {
       if (payload?.videoId === videoId) loadComments();
     };
 
@@ -105,7 +107,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
 
   
 
-  const handleSubmitComment = async () => {
+  const handleSubmitComment = async (): Promise<void> => {
     if (!user || !newComment.trim()) return;
     setIsSubmitting(true);
     try {
@@ -128,14 +130,14 @@ const Comments = ({ videoId }: { videoId: string }) => {
     }
   };
 
-  const handleLike = async (id: string) => {
+  const handleLike = async (id: string): Promise<any> => {
     if (!user) return;
     const res = await axiosInstance.post(`/comment/like/${id}`, { userId: user._id });
     loadComments();
     return res.data;
   };
 
-  const handleDislike = async (id: string) => {
+  const handleDislike = async (id: string): Promise<void> => {
     if (!user) return;
     const res = await axiosInstance.post(`/comment/dislike/${id}`, { userId: user._id });
     if (res.data.flagged) {
@@ -146,7 +148,12 @@ const Comments = ({ videoId }: { videoId: string }) => {
     loadComments();
   };
 
-  const updateCommentTranslation = (commentsList: Comment[], id: string, translatedText: string, detectedLanguage: string | null) =>
+  const updateCommentTranslation = (
+    commentsList: Comment[],
+    id: string,
+    translatedText: string,
+    detectedLanguage: string | null
+  ): Comment[] =>
     commentsList.map((comment) => {
       if (comment._id === id) {
         return { ...comment, translatedText, detectedLanguage };
@@ -160,7 +167,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
       return comment;
     });
 
-  const handleTranslate = async (id: string, targetLang: string) => {
+  const handleTranslate = async (id: string, targetLang: string): Promise<string | undefined> => {
     setTranslatingComments((prev) => [...prev, id]);
     try {
       const res = await axiosInstance.post(`/comment/translate/${id}`, { targetLang });
@@ -190,7 +197,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
     }
   };
 
-  const handleReply = async (parentId: string) => {
+  const handleReply = async (parentId: string): Promise<void> => {
     if (!user || !replyText.trim()) return;
     try {
       await axiosInstance.post(`/comment/reply/${parentId}`, {
@@ -207,7 +214,7 @@ const Comments = ({ videoId }: { videoId: string }) => {
     }
   };
 
-  const renderComment = (comment: Comment, isReply = false) => (
+  const renderComment = (comment: Comment, isReply = false): React.ReactElement => (
     <div key={comment._id} className={`flex gap-4 ${isReply ? "ml-12 mt-3" : ""}`}>
       <Avatar className="w-10 h-10">
         <AvatarFallback>{comment.usercommented?.[0] || "?"}</AvatarFallback>
